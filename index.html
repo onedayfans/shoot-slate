@@ -626,8 +626,8 @@ const CAM_STEPS='<ol class="steps"><li>聽到場板後，三台一起按錄影�
 let CLR=false;
 function saveBlock(k){
   const l=L(k),sv=l.saves||[];
-  const list=sv.map(x=>`<li><span class="sv-t mono">${esc(x.time)}</span><span class="sv-b"><b>${esc(x.res)}${x.take?'　第'+x.take+'次':''}</b>${x.file?'　檔案 '+esc(x.file):''}${x.note?'　'+esc(x.note):''}</span><button type="button" class="sv-x" data-act="sdel" data-k="${k}" data-id="${x.id}" aria-label="刪除這筆">刪除</button></li>`).join('');
-  return `<div class="saves"><button type="button" class="btn acc" data-act="save" data-k="${k}">儲存這一條</button>${sv.length?`<ul class="svlist">${list}</ul>`:'<span class="small muted">按「儲存這一條」會把目前的狀態、次數、檔案號、備註存成一筆，下面會列出來，可單筆刪除。</span>'}</div>`;
+  const list=sv.map(x=>`<li><span class="sv-t mono">${esc(x.time)}</span><span class="sv-b"><b>${x.res&&x.res!=='未拍'?esc(x.res):'已存'}</b>${x.file?'　檔案 '+esc(x.file):''}${x.note?'　'+esc(x.note):''}</span><button type="button" class="sv-x" data-act="sdel" data-k="${k}" data-id="${x.id}" aria-label="刪除這筆">刪除</button></li>`).join('');
+  return `<div class="saves"><button type="button" class="btn acc" data-act="save" data-k="${k}">儲存這一條</button>${sv.length?`<ul class="svlist">${list}</ul>`:'<span class="small muted">拍完：先按上面的 OK／備用／NG，打檔名，再按「儲存這一條」。存好的會列在下面，可單筆刪除。</span>'}</div>`;
 }
 function logCard(v,rn){
   const ns=runShots(rn),t=runTake(v,rn);
@@ -762,13 +762,11 @@ function cardHtml(v,s){
   </div></div>
   <div class="ctl">
     <div class="seg" role="group" aria-label="狀態">${Object.keys(ST).map(x=>`<button type="button" data-act="st" data-k="${k}" data-v="${x}" aria-pressed="${l.st===x}">${ST[x]}</button>`).join('')}</div>
-    <div class="step"><button type="button" data-act="tk" data-k="${k}" data-d="-1" aria-label="少一次">−</button><output>已拍 ${l.takes} 次</output><button type="button" data-act="tk" data-k="${k}" data-d="1" aria-label="多一次">+</button></div>
+
   </div>
   <div class="fields">
-    <label>OK 是第幾條<input data-f="ok" data-k="${k}" inputmode="numeric" value="${esc(l.ok)}" placeholder="例 3"></label>
-    <label>備用第幾條<input data-f="bak" data-k="${k}" inputmode="numeric" value="${esc(l.bak)}" placeholder="例 2"></label>
-    <label>檔案號（${camOf(v,s.n)}）<input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="例 C0123"></label>
-    <label class="wide">備註<input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="例 這條口白漏字，動作好"></label>
+    <label class="wide">檔名（這個鏡頭拍的檔案）<input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="例 C0123（${camOf(v,s.n)}）"></label>
+    <label class="wide">備註（可不填）<input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="例 口白漏字、動作好"></label>
   </div>
   ${saveBlock(k)}
   ${ex?`<div class="ex">${ex}</div>`:''}
