@@ -69,6 +69,20 @@ h3{font-size:15px;margin:0;font-weight:700}
 .cue-dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
 .cue-dots i.on{background:var(--ink);transform:scale(1.3)}
 .cue-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+
+.shotbar{position:sticky;top:var(--tabsH,58px);z-index:8;background:var(--bg);margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:6px max(16px,env(safe-area-inset-left,0px)) 4px;border-bottom:1px solid var(--line)}
+.sb-row{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.sb-row::-webkit-scrollbar{display:none}
+.sb{flex:0 0 auto;width:34px;border:2px solid transparent;border-radius:7px;background:var(--surface);padding:0;overflow:hidden;display:flex;flex-direction:column;align-items:stretch;text-align:center}
+.sb b{font-family:var(--mono);font-size:13px;line-height:24px;color:#fff;background:var(--todo)}
+.sb.st-ok b{background:var(--ok)}.sb.st-bak b{background:var(--bak)}.sb.st-ng b{background:var(--ng)}
+.sb u{text-decoration:none;font-size:10px;line-height:14px;font-weight:700;color:var(--ink);border-top:3px solid var(--muted);background:var(--surface)}
+.sb.w-a u,.sb.w-y u{border-top-color:#1d5fd1}.sb.w-d u{border-top-color:#d6a21a}.sb.w-s u,.sb.w-g u{border-top-color:var(--muted)}
+.sb.inrun{border-color:var(--ink)}
+.sb.cur{border-color:var(--acc);box-shadow:0 0 0 2px var(--ink)}
+.sb-now{font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-file{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;margin-top:4px}.sb-file label{font-size:13px;font-weight:700}.sb-file input{min-width:0;border:2px solid var(--ink);border-radius:8px;padding:6px 8px;font-size:16px;background:#fff;font-family:var(--mono)}.sb-file .btn{padding:6px 12px}
+.task.flash{outline:4px solid var(--acc);outline-offset:2px;border-radius:8px}
 .note{background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px}
 
 /* 設定列 */
@@ -625,7 +639,7 @@ function renderZoom(){
 }
 function taskHtml(v,n){
   const s=SH(v,n),l=L(key(v,n)),d=dur(s),help=sizeHelp(s.size);
-  return `<div class="task"><div class="trow">${thumbBtn(v,n)}
+  return `<div class="task" id="lt-${n}"><div class="trow">${thumbBtn(v,n)}
     <div class="tcol"><div class="thead"><span class="no sm">${pad(n)}</span>
       <div><b>${esc(s.size)}</b> ${whoTag(s)}<div class="small muted">${s.mm?'鏡頭 '+s.mm+'mm · ':''}成片用 ${fmtSec(d)} 秒</div></div>
       <span class="pill ${l.st}">${ST[l.st]}</span></div>
@@ -674,6 +688,28 @@ function storyHtml(v,rn){
   const li=ns.map(n=>{const x=SH(v,n);return `<li><b>鏡${pad(n)}</b> ${whoTag(x)}　${esc(x.act)}${x.line&&x.line!=='無台詞'?`<div class="dialog" style="margin-top:4px">${esc(x.line)}</div>`:''}</li>`}).join('');
   return `<section class="camcard"><h3>這一輪的劇情<span class="muted small">照故事順序，先看懂在演什麼</span></h3><ol class="steps plain">${li}</ol></section>`;
 }
+const WLAB={a:'單人',y:'單人',d:'雙人',s:'分割',g:'活動'};
+function focusShot(v){
+  const rn=RUNS[v][curRun(v)],ns=runShots(rn),f=UI.foc&&UI.foc[v];
+  if(f&&ns.includes(f))return f;
+  return ns.find(n=>L(key(v,n)).st==='todo')||ns[0];
+}
+function shotBar(v,rn){
+  const ns=new Set(runShots(rn)),cur=focusShot(v),cs=SH(v,cur);
+  const btns=SHOTS[v].map(x=>{const st=L(key(v,x.n)).st;
+    return `<button type="button" class="sb st-${st} w-${x.who}${ns.has(x.n)?' inrun':''}${x.n===cur?' cur':''}" data-act="sbgo" data-n="${x.n}" aria-label="鏡${x.n} ${WHO_L[x.who]} ${ST[st]}"><b>${pad(x.n)}</b><u>${WLAB[x.who]}</u></button>`}).join('');
+  return `<div class="shotbar"><div class="sb-row" id="sb-row">${btns}</div><div class="sb-now"><b>現在：鏡 ${pad(cur)}</b> ${esc(cs.size)}・${WLAB[cs.who]}　${esc(cs.act)}</div>
+    <div class="sb-file"><label for="sb-file-in">場記・檔案編號</label><input id="sb-file-in" data-f="file" data-k="${key(v,cur)}" value="${esc(L(key(v,cur)).file)}" placeholder="鏡${pad(cur)} 例 C0123" autocomplete="off" autocapitalize="characters"><button type="button" class="btn ghost" data-act="sbclear" data-k="${key(v,cur)}">清除</button></div></div>`;
+}
+let sbLast=null,sbX=0;
+function sbScroll(){const r=document.getElementById('sb-row');if(!r)return;const c=r.querySelector('.cur'),k=c&&c.dataset.n;if(k===sbLast)r.scrollLeft=sbX;else if(c)r.scrollLeft=c.offsetLeft-r.clientWidth/2+17;sbLast=k;r.onscroll=()=>{sbX=r.scrollLeft}}
+function sbGo(n){
+  const v=UI.lv,x=RUN_OF[v][n];UI.foc=UI.foc||{};UI.foc[v]=n;
+  if(x&&x.length)UI.cur[v]=x[0].run.ri;
+  LSEL={};saveUI();render();
+  const el=document.getElementById('lt-'+n);
+  if(el){el.scrollIntoView({block:'start'});window.scrollBy(0,-190);el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1400)}
+}
 function viewLive(){
   const v=UI.lv,ri=curRun(v),rn=RUNS[v][ri],b=rn.beat,role=UI.role;
   const done=runShots(rn).every(n=>L(key(v,n)).st!=='todo');
@@ -683,6 +719,7 @@ function viewLive(){
   const nx=camRole1?nextFor(v,ri,camRole1):null;
   const summary=role==='log'?`<section class="camcard"><h3>這一輪各台拍什麼</h3><ul class="steps plain">${[1,2,3].map(c=>`<li><b>Cam${c}</b>　${rn.c[c].length?rn.c[c].map(n=>`鏡${pad(n)} ${esc(SH(v,n).size)}${SH(v,n).mm?' '+SH(v,n).mm+'mm':''}`).join('、'):(c===1?'保險全景':'不拍')}</li>`).join('')}</ul></section>`:'';
   return `${vsw()}
+  ${shotBar(v,rn)}
   <div class="runbar top2"><select id="f-run" aria-label="選擇這一輪">${opts}</select>
     <button type="button" class="btn ghost" data-act="runnav" data-d="-1" ${ri===0?'disabled':''}>◀ 上一輪</button>
     <button type="button" class="btn acc" data-act="runnav" data-d="1" ${ri===RUNS[v].length-1?'disabled':''}>下一輪 ▶</button></div>
@@ -887,6 +924,8 @@ function render(){
   const app=$('#app');
   app.innerHTML=tab==='plan'?viewPlan():tab==='edit'?viewEdit():tab==='live'?viewLive():tab==='card'?viewCard():viewLog(UI.lv);
   dirty=false;
+  try{document.documentElement.style.setProperty('--tabsH',($('#tabs').offsetHeight+(parseFloat(getComputedStyle($('#tabs')).top)||0))+'px')}catch(e){}
+  sbScroll();
 }
 function scheduleRender(){
   if(tab==='card'){renderTabs();return}
@@ -968,6 +1007,8 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act;
   if(a==='tab')setTab(b.dataset.tab);
+  else if(a==='sbclear'){patch(b.dataset.k,{file:''});render()}
+  else if(a==='sbgo')sbGo(+b.dataset.n);
   else if(a==='cardv'){CARD.v=b.dataset.v;render()}
   else if(a==='cuenav')cueGo(+b.dataset.d);
   else if(a==='go')goShot(b.dataset.v,+b.dataset.n);
