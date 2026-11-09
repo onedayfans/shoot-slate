@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>短影音 場記表 · Script Supervisor's Log</title>
+<meta name="description" content="三機同拍的短片拍攝場記表:排程、現場分工、Take 記錄、剪輯清單。Multi-camera shoot planner & script supervisor's log for two short videos.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+:root{color-scheme:light only;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+/* Layout: 片場手機優先。上方場板條 + 黏性分頁；內容是單欄卡片，依機位分組排程、依鏡號記錄。 */
+:root{
+  --bg:#ffffff;--surface:#f4f6f8;--surface2:#e6eaee;--ink:#000000;--muted:#4a525a;--line:#c4cbd2;--btn:#1d5fd1;
+  --acc:#f2b632;--on-acc:#14181c;
+  --todo:#56606a;--ok:#1a8a50;--bak:#2563c7;--ng:#cf3434;--on-solid:#ffffff;
+  --ok-soft:#dcf2e6;--bak-soft:#e0eafa;--ng-soft:#fbe3e3;
+  --sans:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;
+  padding-block:0 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:860px;margin:0 auto}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* 場板條 */
+.clap{height:14px;background:repeating-linear-gradient(115deg,var(--ink) 0 18px,var(--bg) 18px 36px);border-bottom:2px solid var(--ink);margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)))}
+.top{padding-block:14px 10px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 16px}
+.top h1{margin:0;font-size:26px;font-weight:900;letter-spacing:.02em;line-height:1.2;text-wrap:balance}
+.top .sub{color:var(--muted);font-size:13px}
+.sync{font-size:12px;font-family:var(--mono);color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--todo)}
+.sync.ok::before{background:var(--ok)}.sync.err::before{background:var(--ng)}.sync.load::before{background:var(--acc)}
+
+/* 分頁 */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--bg);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-block:8px;border-bottom:1px solid var(--line)}
+.tabs button{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 4px;min-width:0;display:flex;flex-direction:column;align-items:center;line-height:1.25}
+.tabs button b{font-size:14px;font-weight:700}
+.tabs button span{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.tabs button[aria-selected="true"]{background:var(--btn);color:#fff;border-color:var(--btn)}
+.tabs button[aria-selected="true"] span{color:inherit;opacity:.8}
+
+main{padding-top:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+h2{font-size:18px;margin:6px 0 0;font-weight:900}
+h3{font-size:15px;margin:0;font-weight:700}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.note{background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px}
+
+/* 設定列 */
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.settings label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.settings input,.settings select,.fields input{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;width:100%;color:var(--ink)}
+
+/* 進度 */
+.prog{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface2)}
+.bar i{display:block;height:100%}
+.bar .ok{background:var(--ok)}.bar .bak{background:var(--bak)}.bar .ng{background:var(--ng)}
+.lgd{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:6px}
+.lgd b{color:var(--ink);font-family:var(--mono)}
+
+/* 排程時間軸 */
+.tl{display:flex;flex-direction:column;gap:10px}
+.tl-item{display:grid;grid-template-columns:62px 1fr;gap:12px;min-width:0}
+.tl-time{font-family:var(--mono);font-size:13px;font-weight:700;padding-top:12px;line-height:1.3}
+.tl-time small{display:block;color:var(--muted);font-weight:500;font-size:11px}
+.tl-body{min-width:0}
+.tl-plain{background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tl-vid{font-weight:900;font-size:16px;padding-top:8px;border-top:3px solid var(--ink)}
+.block{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.block .bh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.block .bh b{font-size:15px}
+.block .bh span{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-weight:700;font-size:13px;min-width:38px;padding:5px 8px;border-radius:7px;border:0;background:var(--todo);color:var(--on-solid)}
+.chip.st-ok{background:var(--ok)}.chip.st-bak{background:var(--bak)}.chip.st-ng{background:var(--ng)}
+
+/* 場記卡 */
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.fchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px}
+.fchip[aria-pressed="true"]{background:var(--acc);color:var(--on-acc);border-color:var(--acc);font-weight:700}
+.shot{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0;scroll-margin-top:calc(env(safe-area-inset-top,0px) + 84px)}
+.shead{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.no{font-family:var(--mono);font-weight:700;font-size:20px;min-width:50px;text-align:center;padding:8px 6px;border-radius:8px;background:var(--todo);color:var(--on-solid)}
+.st-ok .no{background:var(--ok)}.st-bak .no{background:var(--bak)}.st-ng .no{background:var(--ng)}
+.shead .meta{min-width:0}
+.shead .meta b{display:block;font-size:16px;line-height:1.3}
+.shead .meta span{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.btn{border:1px solid var(--btn);background:var(--btn);color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px}
+.btn.ghost{background:#fff;color:var(--btn);border-color:var(--btn)}
+.btn.acc{background:var(--acc);color:var(--on-acc);border-color:var(--acc)}
+.dialog{font-size:15px;font-weight:500}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--muted)}
+.tag.warn{border-color:var(--acc);color:var(--ink);background:color-mix(in srgb,var(--acc) 22%,transparent)}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--bg);padding:8px 13px;font-weight:700;font-size:14px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{color:var(--on-solid)}
+.seg button[data-v="todo"][aria-pressed="true"]{background:var(--todo)}
+.seg button[data-v="ok"][aria-pressed="true"]{background:var(--ok)}
+.seg button[data-v="bak"][aria-pressed="true"]{background:var(--bak)}
+.seg button[data-v="ng"][aria-pressed="true"]{background:var(--ng)}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.step button{border:0;background:var(--bg);width:40px;height:38px;font-size:20px;font-weight:700}
+.step output{min-width:78px;text-align:center;font-family:var(--mono);font-weight:700;font-size:14px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.fields label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.fields .wide{grid-column:1/-1}
+.ex{display:flex;flex-direction:column;gap:4px}
+.ex label{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.ex input{margin-top:4px;width:18px;height:18px;accent-color:var(--acc);flex:none}
+details summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:700;padding:2px 0}
+dl.info{display:grid;grid-template-columns:70px 1fr;gap:6px 10px;margin:8px 0 0;font-size:13px}
+dl.info dt{color:var(--muted);font-weight:700}
+dl.info dd{margin:0;min-width:0}
+.empty{color:var(--muted);text-align:center;padding:24px 0}
+
+/* 剪輯頁 */
+.strip{display:flex;gap:2px;height:44px}
+.strip i{display:flex;align-items:center;justify-content:center;font-style:normal;font-family:var(--mono);font-size:10px;font-weight:700;background:var(--todo);color:var(--on-solid);border-radius:3px;min-width:3px;overflow:hidden}
+.strip i.st-ok{background:var(--ok)}.strip i.st-bak{background:var(--bak)}.strip i.st-ng{background:var(--ng)}
+.ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:3px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+td.n{font-family:var(--mono);font-weight:700}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--todo);color:var(--on-solid)}
+.pill.ok{background:var(--ok)}.pill.bak{background:var(--bak)}.pill.ng{background:var(--ng)}
+textarea.out{width:100%;min-height:140px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--mono);font-size:12px;resize:vertical}
+
+/* 場板（拍攝時大字） */
+.slate{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,#000 72%,transparent);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.slate-card{width:100%;max-width:520px;background:var(--surface);border:3px solid var(--ink);border-radius:10px;overflow:hidden;margin-block:auto}
+.slate-card .clap{margin:0;height:34px;border-bottom:3px solid var(--ink)}
+.slate-body{padding:14px;display:flex;flex-direction:column;gap:12px}
+.sgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.sgrid div{border:2px solid var(--ink);border-radius:8px;padding:6px 10px;min-width:0}
+.sgrid span{display:block;font-size:11px;color:var(--muted);font-weight:700}
+.sgrid b{font-family:var(--mono);font-size:44px;line-height:1.1;font-weight:700}
+.sgrid .cam b{font-size:34px}
+.sact{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.sact button{padding:14px 8px;font-size:17px;font-weight:900;border-radius:10px;border:0;color:var(--on-solid)}
+.sact .a-ok{background:var(--ok)}.sact .a-bak{background:var(--bak)}.sact .a-ng{background:var(--ng)}.sact .a-n{background:var(--todo)}
+.snav{display:flex;justify-content:space-between;gap:8px}
+.chip.sm{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;padding:4px 6px;min-width:0;font-size:13px}
+.chip small{font-size:10px;font-weight:500;opacity:.9}
+.runs{display:grid;grid-template-columns:40px repeat(3,minmax(0,1fr));gap:6px;align-items:start}
+.rh{font-size:11px;font-weight:700;color:var(--muted);text-align:center;font-family:var(--mono)}
+.rlab{font-family:var(--mono);font-weight:700;font-size:13px;border:2px solid var(--ink);background:var(--acc);color:var(--on-acc);border-radius:7px;padding:5px 0}
+.cell{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
+.cell .chip{width:100%}
+.cell .tag{text-align:center}
+.rnote{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:-2px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.chip.sel{background:var(--surface2);color:var(--ink);border:2px solid var(--line);padding:7px 10px}
+.chip.sel[aria-pressed="true"]{background:var(--btn);color:#fff;border-color:var(--btn)}
+.vsw{display:flex;width:100%}
+.vsw button{flex:1;min-width:0}
+.vsw button[aria-pressed="true"]{background:var(--btn);color:#fff}
+.runbar{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:8px;align-items:center}
+.runbar select{min-width:0;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--ink)}
+.runbar .btn{padding:9px 6px}
+.btn:disabled{opacity:.35;cursor:default}
+.runhead{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.rl{font-family:var(--mono);font-weight:700;font-size:30px;background:var(--acc);color:var(--on-acc);border:2px solid var(--ink);border-radius:8px;padding:4px 12px;flex:none}
+.camcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.camcard h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:18px;font-weight:900}
+.task{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg);min-width:0}
+.thead{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.no.sm{font-size:16px;min-width:42px;padding:6px 4px}
+.hint{margin:0;font-size:13px;background:var(--surface2);border-radius:6px;padding:6px 9px}
+.warnline{margin:0;font-size:13px;border:1px dashed var(--acc);border-radius:6px;padding:6px 9px}
+.idle{margin:0;color:var(--muted);font-size:14px}
+.steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.steps.plain{padding-left:0;list-style:none}
+.takebig{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.takebig b{font-family:var(--mono);font-size:34px;line-height:1}
+.recrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.recrow input[data-f]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;width:100%}
+.recrow .rsel{display:flex;gap:8px;align-items:center;min-width:0}
+.recrow .rsel input{width:20px;height:20px;accent-color:var(--acc);flex:none}
+.gloss summary{font-size:15px;color:var(--ink)}
+.gloss dl.info{grid-template-columns:100px minmax(0,1fr);margin-top:10px}
+.thumb{flex:none;width:96px;padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface2);display:block;cursor:zoom-in;line-height:0}
+.thumb img{width:100%;height:auto;display:block;aspect-ratio:9/16;object-fit:cover}
+.thumb.mini{width:44px}
+.trow,.shotrow{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.tcol,.shotcol{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
+.thead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.thead>div{flex:1;min-width:90px}
+.zoom{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,#000 84%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.zoom img{max-width:100%;max-height:72vh;width:auto;height:auto;border-radius:8px}
+.zoom .cap{color:#fff;font-size:14px;text-align:center}
+@media (min-width:600px){.thumb{width:150px}.thumb.mini{width:52px}}
+@media (prefers-reduced-motion:no-preference){.shot,.block{transition:border-color .15s}}
+@media (max-width:420px){.top h1{font-size:23px}.tl-item{grid-template-columns:52px 1fr;gap:8px}.sgrid b{font-size:36px}.seg button{padding:8px 10px}}
+.camfields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px}.camfields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}.camfields input{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);font-size:15px;min-width:0}
+.saves{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.saves .btn{align-self:flex-start}
+.svlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.svlist li{display:flex;gap:8px;align-items:center;background:var(--surface2);border-radius:8px;padding:6px 8px;font-size:13px}
+.sv-t{color:var(--muted);flex:none}.sv-b{flex:1;min-width:0;overflow-wrap:anywhere}
+.sv-x{flex:none;border:1px solid var(--ng);color:var(--ng);background:transparent;border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700}
+.btn.danger{background:var(--ng);border-color:var(--ng);color:var(--on-solid)}
+.tag.who-a{background:var(--bak-soft);color:var(--bak)}.tag.who-y{background:var(--ok-soft);color:var(--ok)}.tag.who-s,.tag.who-g{background:var(--surface2);color:var(--muted)}
+.flowblk{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:10px}.flowblk h4{margin:0;font-size:15px}
+.flowcol{display:flex;flex-direction:column;gap:4px}.flowcol .chips{display:flex;flex-wrap:wrap;gap:6px}
+</style>
+
+<body>
+<div class="wrap">
+  <div class="clap" aria-hidden="true"></div>
+  <header class="top">
+    <div>
+      <h1>短影音 場記表<small style="display:block;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0">Script Supervisor's Log · 3-Camera Shoot Planner</small></h1>
+      <div class="sub" id="subline"></div>
+    </div>
+    <div class="sync load" id="sync">連線中</div>
+  </header>
+  <nav class="tabs" id="tabs" aria-label="分頁"></nav>
+  <main id="app"></main>
+</div>
+<div class="slate" id="slate" hidden role="dialog" aria-label="場板"></div>
+<div class="zoom" id="zoom" hidden data-act="zclose" role="dialog" aria-label="分鏡圖"></div>
+
+<script>
+/* ============ 資料 ============ */
+const META={
+  v1:{name:'第一支 尬舞',short:'第一支'},
+  v2:{name:'第二支 童玩大挑戰',short:'第二支'}
+};
+const V1=[
+{n:1,t:[0,1.2],cam:'A',size:'正面全景',mm:24,ref:'new01',min:8,
+ comp:'源寶在畫右，手機架在右前；畫左留進場空間，耳尖與腳底完整。',act:'先點腳，再抬拳抖肩；看手機，節奏漸怪。',
+ line:'無台詞',cut:'音樂跟第一個動作進',fx:'此時不出血條，讓練舞與手機關係清楚。',link:'01 全景→02 阿北中景；進場由左向右，源寶不換腳位。'},
+{n:2,t:[1.2,3.2],cam:'B',size:'阿北中景',mm:50,ref:'new02',min:6,comb:'手',
+ comp:'頭到大腿；左掌向畫右，右手梳子垂在右腿旁；源寶僅留右前景。',act:'煞住，先低看腳再看臉；彎腰探頭，語氣一本正經。',
+ line:'阿北：「少年欸！你是觸電喔？要不要幫你叫救護車？」',cut:'阿北：「少年欸，你觸電喔？」',fx:'不加攻擊光效；停步收衣料與鞋底聲。',link:'02 中景→03 源寶臉近景；吐槽說完，源寶停腳才反打。'},
+{n:3,t:[3.2,4.9],cam:'C',size:'源寶臉近景',mm:75,ref:'f1_3',min:5,
+ comp:'頭、耳與一點肩胸；眼睛看畫左的阿北，不看手機。',act:'先停腳，一手指自己，急著澄清。',
+ line:'源寶：「阿北！我在跳舞啦！」',cut:'同正式原句',fx:'不加勝負 UI；字幕讓開眼睛。',link:'03 整臉→04 阿北眉眼局部；阿北視線仍向畫右。'},
+{n:4,t:[4.9,5.2],cam:'B',size:'阿北眉眼大特寫',mm:135,ref:'eye04',min:5,
+ comp:'眉眼與半側臉，額頂、肩部退出畫面；保畫右視線。',act:'低看源寶的腳，再抬眉質疑。',
+ line:'阿北：「蛤？這樣也叫跳舞？」',cut:'無台詞；取抬眉半拍，接源寶挑戰聲',fx:'不疊表情貼圖，讓眼神完成笑點。',link:'04 局部→05 源寶胸上；短反應現場完整演，不按 0.3 秒叫停。',
+ ex:['現場完整演一遍（成片只用 0.3 秒，不要按秒數叫停）']},
+{n:5,t:[5.2,6.5],cam:'C',size:'源寶胸上中近景',mm:50,ref:'f2_1',min:6,
+ comp:'頭到胸、勾手與胸前拳頭清楚；視線畫左。',act:'勾手挑釁，再握拳停胸前，不往前追鏡頭。',
+ line:'源寶：「不然你來啊！敢不敢 SOLO？」',cut:'源寶：「敢不敢 SOLO？」',fx:'勾手收短提示聲，不提早打擊或扣血。',link:'05 胸上→06 阿北腰上；挑戰動作收完再亮資歷。'},
+{n:6,t:[6.5,8],cam:'B',size:'阿北腰上中景',mm:40,ref:'new06',min:7,comb:'手',
+ comp:'腰帶與兩手入框；右手舉唯一一把梳子，腰間此時沒有梳子。',act:'挺胸亮資歷，舉梳到胸旁；右手落向腰時轉梳背成水平。',
+ line:'阿北：「哩馬幫幫忙！阿北跳舞四十年耶！」',cut:'阿北：「阿北跳舞四十年耶！」聲音接鏡 07',fx:'不複製第二把梳子；右手開始向右腰落下。',link:'06 腰上→07 右腰插梳特寫；同一右手、同一把梳子。'},
+{n:7,t:[8,9.2],cam:'D',size:'右腰梳子特寫',mm:85,ref:'new07',min:8,comb:'→腰',
+ comp:'只收右腰、右手與梳子；梳背平行腰帶，梳齒朝上，臉不入框。',act:'右手把梳背插進右腰，插到底後停一下，才補口白。',
+ line:'阿北：「釘估之！」；前一句可跨到特寫',cut:'同正式原句；上一句約 8.5 秒前收完，口白接動作落點',fx:'插到底一個清楚的收納聲；梳齒保留外露。',link:'07 道具特寫→08 分割臉；手放開後才進 VS。',
+ ex:['插到底後停一下再補口白']},
+{n:8,t:[9.2,10],cam:'B/C',size:'雙方臉部特寫分割',mm:85,ref:'f2_3',min:4,
+ comp:'阿北左半、源寶右半；兩人各拍單人，視線互相對上。',act:'各拍轉頭、對視定格；另外保一遍伸手。',
+ line:'無角色新台詞；戰鬥提示「READY？FIGHT！」',cut:'同正式提示；聲音可先入、跨進鏡 09',fx:'沿用金／藍血量介面，雙方滿格；中央 VS，不遮臉。',link:'08 分割臉→09 雙人全身；先交代雙方腳位再開打。',
+ ex:['阿北半邊單拍（視線畫右）','源寶半邊單拍（視線畫左）','另保一遍伸手版']},
+{n:9,t:[10,12.6],cam:'A',size:'第一回合雙人全景',mm:28,ref:'f2_4',min:12,
+ comp:'源寶畫右、阿北畫左；兩人腳與耳完整，手機架移出主戰區。',act:'源寶點腳、交替推拳、抬掌；阿北到最後一拍才後仰擋。',
+ line:'本段舞步無新台詞；下一句留到受擊反應',cut:'無台詞；末拍 12.4 秒完成攻擊',fx:'星星與爪印沿源寶→阿北方向，12.4 秒才命中；阿北血條 100→45。',link:'09 全景看清末拍→10 阿北胸上反應；左手沿擋勢接鏡。'},
+{n:10,t:[12.6,14],cam:'B',size:'阿北受擊中近景',mm:65,ref:'new10',min:6,
+ comp:'頭到胸，左掌在胸前擋住；眼睛仍看畫右。',act:'後仰收住，從驚訝轉成佩服；不是再受擊一次。',
+ line:'阿北：「吼！有兩下子喔！」',cut:'同正式原句',fx:'命中尾光可延續，血條不再重扣；對白在音樂前。',link:'10 胸上→11 右腰抽梳局部；下一回合提示聲先入。'},
+{n:11,t:[14,14.65],cam:'D',size:'右腰抽梳特寫',mm:85,ref:'new07',min:6,comb:'→手',
+ comp:'與鏡 07 同一右腰、同一梳子；右手靠近梳背，臉不入框。',act:'右手握梳背，向上抽離腰帶；現場另拍完整抽出版本。',
+ line:'無台詞',cut:'無台詞；抽梳聲對準離開腰帶的瞬間',fx:'鏡 07 是插入、鏡 11 是抽出；動作方向相反，不能同一段倒放替代。',link:'11 梳子離腰→12 雙人全景；梳子已在右手，沿同方向甩出去。',
+ ex:['另拍完整抽出版本']},
+{n:12,t:[14.65,16.2],cam:'A',size:'第二回合雙人全景',mm:28,ref:'f3_1',min:8,comb:'手',
+ comp:'兩人全身；阿北左、源寶右，保梳尖與地面。',act:'阿北先扭腰再甩梳，準備向畫左滑步；源寶等末拍再中招。',
+ line:'無新台詞',cut:'無台詞',fx:'金色拖尾沿右手梳尖，不從源寶發光；此鏡先蓄勢，不提早扣血。',link:'12 全景→13 鞋尖；在左腳開始擦地時切，左右腳不互換。'},
+{n:13,t:[16.2,17.3],cam:'D-L',size:'鞋尖滑步特寫',mm:85,ref:'new13',min:6,
+ comp:'黑皮鞋、同一黑褲腳及木地面；左側留滑行空間。',act:'右腳支撐、左腳向畫左擦地側滑；保啟動到停住。',
+ line:'無台詞',cut:'無台詞；鞋底擦地聲，末拍 17.1 秒收住',fx:'金線短促跟鞋底移動；17.1 秒接中招聲，源寶血條 100→20。',link:'13 鞋特寫看到滑步完成→14 源寶臉；不在腳離地半途切。'},
+{n:14,t:[17.3,18],cam:'C',size:'源寶受擊臉特寫',mm:85,ref:'new14',min:5,
+ comp:'頭、耳、臉與一隻扶頰爪；不收全身。',act:'眼神追向畫左，最後一拍歪頭、往自己右側縮一下。',
+ line:'無新台詞',cut:'無台詞，短吸氣／暈眩反應',fx:'螺旋眼為後製覆蓋選項，先保正常紫眼乾淨版；不再扣一次血。',link:'14 臉特寫→15 閃身全景；源寶腳位仍留在畫右。',
+ ex:['正常紫眼乾淨版（螺旋眼由後製加）']},
+{n:15,t:[18,21],cam:'A',size:'閃身步鎖定全景',mm:28,ref:'new15',min:12,comb:'→腰',
+ comp:'阿北畫左、源寶畫右；左邊保離框路徑，腳架、焦距、曝光鎖定。',act:'回定位、右手收梳回右腰。說到「步」才向畫左平移離框；源寶不移腳。',
+ line:'阿北：「看阿北這招！閃！身！步！」',cut:'同正式原句；「步」約 20.6 秒落下，之後才離框',fx:'20.6 秒後往畫左留藍色殘影；圖示血量維持阿北 45、源寶 20。',link:'15 離框完成→16 源寶近景；先保左方空位，不跟著阿北搖鏡。'},
+{n:16,t:[21,22.1],cam:'C',size:'源寶找人臉近景',mm:85,ref:'new14',min:6,
+ comp:'臉與胸口，先看畫左；背景方向沿用正面主鏡。',act:'先盯畫左半拍，再開始轉頭找；表演從暈眩回神接過來。',
+ line:'源寶：「阿北咧？！」（另保無台詞版）',cut:'約 21.2 秒開始喊，聲音可跨鏡 17',fx:'不新增受擊效果；保一小段音樂空白。',link:'16 臉近景→17 空位全景；轉頭尋找動作持續，腳不移位。',
+ ex:['另保無台詞版']},
+{n:17,t:[22.1,23],cam:'A',size:'雙人主鏡空位全景',mm:28,ref:'new17',min:6,
+ comp:'與鏡 15 完全同機位；左半只有空地，源寶仍在右方原腳印。',act:'源寶回看畫左空位，再確認畫右，最後攤手；不走去找人。',
+ line:'延續「阿北咧？！」，不重說',cut:'同正式延續；至少留半拍空白等閃回',fx:'阿北與殘影都已消失；不新增傷害或血量變動。',link:'17 全景確認沒人→18 肩旁中近景；阿北聲音先入，源寶才回頭。'},
+{n:18,t:[23,24.5],cam:'A-M',size:'肩旁閃回雙人中近景',mm:50,ref:'f3_4',min:12,
+ comp:'源寶在右前，阿北在源寶畫面左後方、靠肩的位置；不是兩人重新換邊。',act:'阿北說話並向前伸手；源寶先聽見，再回頭、抬爪嚇一下。',
+ line:'阿北：「還沒結束咧！」',cut:'同正式原句',fx:'一瞬藍色入場光，接乾淨人物；拍有／無阿北兩版供遮罩。',link:'18 肩旁中近景→19 正面全身；源寶轉回正面後才開始抖。',
+ ex:['有阿北版','無阿北版（乾淨底，供遮罩）']},
+{n:19,t:[24.5,26.1],cam:'A',size:'跟抖雙人全景',mm:28,ref:'new19',min:10,comb:'腰',
+ comp:'阿北左、源寶右，雙腳入框；梳子在阿北右腰、雙手空。',act:'第一拍阿北先抖，第二拍源寶試抖，第三拍兩人一起加速。',
+ line:'阿北：「露肚況露肚況露肚肚況況！」',cut:'同正式原句，聲音跨鏡 20，約 26.8 秒前收完',fx:'震動與節奏由後製加，攝影機固定；血條暫不歸零。',link:'19 全身→20 源寶胸肩局部；同一拍肩膀的上／下位接上。'},
+{n:20,t:[26.1,26.65],cam:'C-I',size:'源寶胸肩與雙爪特寫',mm:100,ref:'new20',min:6,
+ comp:'只收胸肩、領口、雙爪；不收整臉或腳底。',act:'肩膀與雙爪急促跟抖，表演拍完整三拍後再停。',
+ line:'延續阿北同一句，源寶不另加台詞',cut:'同正式聲音延續',fx:'保乾淨身體，震動以少量位置偏移合成，不用全畫面大幅亂晃。',link:'20 局部動作→21 全景瞬停；音樂先抽掉一拍，再雙血條歸零。'},
+{n:21,t:[26.65,27.45],cam:'A',size:'瞬停降坐雙人全景',mm:28,ref:'new21',min:12,comb:'腰',
+ comp:'全身與落坐地面完整；左阿北右源寶，梳子固定右腰。',act:'抖到最高點一起停，雙膝彎曲，先降到坐姿、手撐地；不直接往後摔。',
+ line:'無新角色台詞；保喘氣',cut:'約 27.0 秒血量歸零，播報「DOUBLE KILL」',fx:'雙血條同時到零，畫面出「DOUBLE K.O.」；歸零先於落地尾聲。',link:'21 全景控制降坐→22 低機位雙人胸上躺定；靠坐姿接點換安全躺姿。'},
+{n:22,t:[27.45,28.65],cam:'E',size:'低機位雙人胸上躺姿',mm:50,ref:'new22',min:8,
+ comp:'只收兩人的頭、肩、胸；地面視線，人物仍左／右同位。',act:'另拍已躺定，喘氣、慢慢轉向對方；保起身接段。',
+ line:'源寶：「阿北……你真的很會閃欸……」',cut:'40 秒版只喘氣；原句完整收錄供原稿剪輯',fx:'KO 字樣尾段延續後退場；不重播歸零或第二次落地。',link:'22 躺姿→23 摸腰局部；用同一喘氣聲，另保從躺到坐的完整過程。',
+ ex:['已躺定、喘氣、慢慢轉向對方','從躺到坐的完整起身過程']},
+{n:23,t:[28.65,29.4],cam:'E-I',size:'摸腰手部特寫',mm:85,ref:'new23',min:5,comb:'腰',
+ comp:'左手摸左後腰，右手撐地；右腰梳子固定，臉不入框。',act:'慢慢撐起、按住腰，先吃力再鬆一口氣。',
+ line:'阿北：「嘿啊……阿北差點閃到腰……」',cut:'阿北：「差點閃到腰……」聲音接鏡 24',fx:'收手掌碰衣料與地面的聲音，不再加傷害特效。',link:'23 摸腰局部→24 阿北坐姿中景；手的左右位置與膝蓋方向一致。'},
+{n:24,t:[29.4,30.7],cam:'E-B',size:'阿北坐姿中景',mm:50,ref:'new24',min:6,
+ comp:'頭至彎膝；右掌撐地、左手腰，眼神畫右。',act:'疼完忽然精神一振，轉向源寶想再比；不要直接看鏡頭。',
+ line:'阿北：「少年欸！還是說再來一場？」',cut:'接上一句：「再一場？」；整段短句約 29.0–30.6 秒',fx:'短句保持自然語速，低機位對白清楚，音樂壓低。',link:'24 坐姿中景→25 源寶臉特寫；源寶抬掌先擋，再轉向觀眾。'},
+{n:25,t:[30.7,33],cam:'E-C',size:'源寶坐姿臉近景',mm:75,ref:'new25',min:8,
+ comp:'耳、臉、胸與舉掌同框；開始看畫左，句尾轉看鏡頭。',act:'舉掌拒絕原地再比，語氣轉有精神，最後「打」落點對字卡。',
+ line:'源寶：「不行！要打，就去高雄夢時代打！」',cut:'源寶：「要打，就去高雄夢時代打！」',fx:'活動地點先由台詞帶出，最後一個「打」接鏡 26；不另加第二張活動 cut。',link:'25 臉近景→26 全版活動資訊；以最後「打」作切點。'},
+{n:26,t:[33,40],cam:'GFX',size:'單一全版活動資訊',mm:0,ref:'end',min:12,
+ comp:'12/5 與 12/6 兩區同時留在同一張 9:16 活動畫面；地點、日期共用。',act:'背景可用雙人定姿；收同指鏡頭、直視兩版各至少 5 秒，供美術置入。',
+ line:'無新增口播；承接上一鏡「打」的尾音',cut:'無新增台詞；同畫面完整留讀 7 秒',fx:'沿用紫／藍／薄荷色活動美術參考；主標、兩日期、夢時代明確層級，正式 KV／Logo 依品牌定稿。',link:'33–40 秒保持同一 cut，不在 36.5 秒換卡；兩區不得先後遮蓋。',
+ ex:['同指鏡頭定姿 ≥5 秒','直視鏡頭定姿 ≥5 秒']}
+];
+
+const V2=[
+{n:1,t:[0,1.2],cam:'A',size:'雙人全景',mm:24,min:6,comp:'兩人全身、橘凳、門口及桌區同框',act:'阿伯打手機，源寶站右側看他',link:'先建立空間，再進操作中景'},
+{n:2,t:[1.2,2.2],cam:'B',size:'阿伯中景',mm:50,min:5,comp:'頭到腰，手機與雙手完整',act:'上身前傾、越點越急；不切手機失敗畫面',link:'景別由全景進中景，保留手的緊張'},
+{n:3,t:[2.2,2.9],cam:'B',size:'阿伯表情特寫',mm:85,min:5,comp:'頭／上胸，手機退出重點',act:'輸了停手、抿嘴、肩膀垮一點',link:'先給失敗結果，再讓吐槽聲音先入'},
+{n:4,t:[2.9,4.4],cam:'C-OTS',size:'源寶越肩中近景',mm:65,min:6,comp:'阿伯肩膀模糊在左，源寶在右清楚',act:'指手機再看人，得意吐槽',link:'用反打建立兩人對話；不是同主圖放大'},
+{n:5,t:[4.4,6.2],cam:'B',size:'阿伯反打特寫',mm:85,min:6,comp:'眼睛向畫右，金色領口留一點',act:'蛤？你說我很戳？先疑惑再不服',link:'在表情近景完整說短句，視線不越軸'},
+{n:6,t:[6.2,7.5],cam:'A-L',size:'手指前景大特寫',mm:35,min:6,comp:'指腹佔下半框；阿伯臉在後，源寶縮為背景',act:'手指直逼鏡頭；最後指腹全遮',link:'05 臉特寫→06 手指主體；全遮後才切俯拍',ex:['指腹全遮至少 8 格（約 0.3 秒）']},
+{n:7,t:[7.5,8.5],cam:'T',size:'俯拍雙手與桌面',mm:50,min:8,comp:'90 度俯拍；左木陀螺、右戰鬥陀螺；兩牌在下',act:'遮鏡後兩手已碰道具，各自向上取陀螺；此時不戳紙',link:'06 遮滿→07 俯拍桌面；右側藍手抬起動作接 08 胸前'},
+{n:8,t:[8.5,9.7],cam:'C',size:'源寶中近景',mm:50,min:5,comp:'頭到胸，戰鬥陀螺在胸前',act:'那來 PK 啊！亮道具後停手',link:'把挑戰交給源寶，避免兩人一直平鋪同框'},
+{n:9,t:[9.7,10.5],cam:'B-I',size:'木陀螺與手特寫',mm:85,min:6,comp:'只收木陀螺、持物手及金色袖口；不收整臉',act:'用拇指摸陀螺繩，熟悉地亮起：少年欸！',link:'08 源寶肩胸→09 阿伯手部道具→10 雙人中景；聲音跨鏡'},
+{n:10,t:[10.5,12.5],cam:'A',size:'雙人中景',mm:40,min:7,comp:'保胸前木陀螺及源寶反應',act:'阿北以前都玩這個！說話時亮陀螺',link:'台詞聲音持續，換到雙人主圖讓動作成立'},
+{n:11,t:[12.5,13.2],cam:'B/C',size:'臉部大特寫分割',mm:105,min:4,comp:'阿伯左半、源寶右半；臉與眼神擠滿分割框',act:'兩人各看對手方向，短暫收眼神，分開拍後製分割',link:'10 雙人中景→11 分割大特寫→12 回對戰主鏡',ex:['阿伯半邊單拍（視線畫右）','源寶半邊單拍（視線畫左）']},
+{n:12,t:[13.2,14.95],cam:'A-L',size:'首殺戰鬥主鏡',mm:28,min:10,comp:'保留原圖第一回合人物＋桌面＋兩顆陀螺',act:'起手→14.6 秒碰撞→陀螺被撞走',link:'先看清擊中結果，再准許切情緒鏡'},
+{n:13,t:[14.95,15.35],cam:'C',size:'源寶受擊特寫',mm:75,min:5,comp:'眼神追向畫左，手收回胸前',act:'一瞬傻眼、頭後縮；現場完整演 3 秒',link:'剪取 0.4 秒反應，首殺音效可延續',ex:['完整演 3 秒（成片只取 0.4 秒）']},
+{n:14,t:[15.35,15.8],cam:'B',size:'阿伯眼角大特寫',mm:135,min:5,comp:'眉眼與半側臉局部；額頂、下巴退出畫面',act:'眼角偷瞄畫右、眉眼壓笑；現場完整拍 3 秒',link:'13 源寶整臉→14 阿伯半側臉局部→15 回桌面主鏡',ex:['完整拍 3 秒（成片只取 0.45 秒）']},
+{n:15,t:[15.8,17.45],cam:'A-L',size:'雙殺戰鬥主鏡',mm:35,min:10,comp:'原圖第二回合，阿伯低身、兩張牌、源寶同框',act:'起掌→17.1 落掌→兩張翻面',link:'翻兩張結果成立，才能切走'},
+{n:16,t:[17.45,18],cam:'C',size:'源寶反應特寫',mm:75,min:5,comp:'眼睛先低看牌，再抬向畫左',act:'不敢相信；現場做完整看桌再看人',link:'雙殺播報延續到反應鏡，不再拍第二次翻牌',ex:['完整做「看桌再看人」']},
+{n:17,t:[18,18.5],cam:'B',size:'阿伯腰上中景',mm:50,min:5,comp:'頭、金色肩胸、手肘與腰完整；看畫右',act:'有把握地挑眉，手輕叉腰；完整拍 3 秒',link:'16 源寶臉特寫→17 阿伯腰上中景→18 回雙人戰鬥',ex:['完整拍 3 秒（成片只取 0.5 秒）']},
+{n:18,t:[18.5,21.5],cam:'A',size:'五殺戰鬥中全景',mm:35,min:12,comp:'原圖第三回合，直立五格板中央，兩人同框',act:'紙板入場，五次戳格，最後下中央格完成',link:'主鏡保完整五戳；預鬆紙格／分拍補結果',ex:['預鬆紙格版本','分拍補「結果」畫面']},
+{n:19,t:[21.5,24],cam:'B-I',size:'獎品與手部特寫',mm:85,min:8,comp:'小獎與持物手佔主體，紙板在後虛焦；臉不入框',act:'依主鏡同一得獎手舉高小獎，笑聲與完整台詞持續',link:'18 五戳主鏡→19 獎品特寫→20 得意表情；舉手方向連戲'},
+{n:20,t:[24,26.2],cam:'B',size:'阿伯得意中近景',mm:50,min:6,comp:'頭到胸；得獎手保持高位可出框，另一手木陀螺留在下緣',act:'……童玩我就是 MVP 啦！',link:'台詞跨鏡持續；不以木陀螺偷換剛舉高的小獎'},
+{n:21,t:[26.2,27.5],cam:'B',size:'阿伯眼神局部大特寫',mm:135,min:5,comp:'眉眼與半側臉局部；視線隨提示光移向畫右上，暖光由下起',act:'眼角笑意收掉，瞳孔隨上升光看向畫右上；不補驚叫',link:'20 肩胸表情→21 局部眼神→22 回主鏡揭曉光源'},
+{n:22,t:[27.5,29.8],cam:'A',size:'獎勵雙人中景',mm:35,min:10,comp:'同一第五格在中間，芽芽卡升起位置固定',act:'源寶指第五格：阿北！這個才是大獎啦！',link:'揭曉用原圖主構圖，官方圖素置入'},
+{n:23,t:[29.8,30.6],cam:'B',size:'阿伯看小獎近景',mm:75,min:5,comp:'小獎在下方，視線低→高',act:'看一下小獎，再看大獎，表情收斂',link:'0.8 秒是選取長度，現場兩個視線都演完整',ex:['「看小獎」「看大獎」兩個視線各演完整']},
+{n:24,t:[30.6,32],cam:'C',size:'源寶單人全景',mm:35,min:5,comp:'雙耳至腳底全入框；桌緣在左，源寶朝畫左',act:'手指向大獎後收手，得意點頭；不新增台詞',link:'23 阿伯臉近景→24 源寶全身→25 雙人胸上'},
+{n:25,t:[32,40],cam:'A',size:'CTA 雙人中近景',mm:40,min:12,comp:'原圖雙人指觀眾，右上留官方活動資訊',act:'完整 CTA 約 6 秒，再保持笑容定姿',link:'一鏡說完、資訊同畫面留讀；不再碎切',ex:['CTA 約 6 秒完整一條','結尾笑容定姿至少 2 秒']}
+];
+const SHOTS={v1:V1,v2:V2};
+/* 演員分批：a=阿伯單人（源寶拍平面時可先拍）、y=源寶單人、d=兩人同框、s=分割（可各自單拍）、g=活動資訊（後製） */
+const WHO={v1:{1:'y',3:'y',5:'y',14:'y',16:'y',17:'y',20:'y',25:'y',4:'a',6:'a',7:'a',10:'a',11:'a',13:'a',23:'a',24:'a',8:'s',26:'g'},
+  v2:{8:'y',13:'y',16:'y',24:'y',2:'a',3:'a',5:'a',9:'a',14:'a',17:'a',19:'a',20:'a',21:'a',23:'a',11:'s'}};
+const WHO_L={a:'阿伯單人',y:'源寶單人',d:'兩人同框',s:'分割・各自單拍',g:'活動資訊'};
+SHOTS.v1.forEach(x=>x.who=WHO.v1[x.n]||'d');SHOTS.v2.forEach(x=>x.who=WHO.v2[x.n]||'d');
+const whoTag=x=>`<span class="tag who-${x.who}">${WHO_L[x.who]}</span>`;
+const r=(c1,c2,c3,min,note)=>({c:{1:c1,2:c2,3:c3},min,note:note||''});
+const BEATS={
+  v1:[
+    {id:'A',short:'開場對話',name:'開場對話',desc:'練舞被阿北撞見，吐槽到澄清（鏡 1–3）',chg:15,
+     runs:[r([1],[2],[3],10,'Cam1 24mm 正面全景；Cam2 阿北中景 50mm；Cam3 源寶臉 75mm。從練舞拍到源寶說完「我在跳舞啦」')],
+     tip:'源寶在畫右、手機架在右前，畫左留阿北進場空間。阿北進場由左向右，源寶不換腳位。'},
+    {id:'B',short:'挑戰 SOLO',name:'挑戰 SOLO',desc:'阿北質疑、源寶挑釁、阿北亮資歷（鏡 4–6）',chg:12,
+     runs:[r([],[4],[5],8,'Cam2 135mm 阿北眉眼；Cam3 50mm 源寶挑釁。眉眼現場完整演，成片只取 0.3 秒'),r([],[6],[],8,'Cam2 換 40mm 拍阿北亮資歷；梳子在手、腰間沒有梳')],
+     tip:'Cam1 沒有指派時一直錄保險全景。阿北視線朝畫右，源寶視線朝畫左。'},
+    {id:'C',short:'插梳與對視',name:'插梳與對視',desc:'梳子插進右腰，雙方對視（鏡 7–8）',chg:10,
+     runs:[r([7],[8],[8],9,'Cam1 85mm 拍右腰插梳；Cam2 85mm 只拍阿北半邊；Cam3 85mm 只拍源寶半邊')],
+     tip:'鏡 8 兩半邊各自單人入鏡，兩台互相不要拍到對方。梳子只有一把，插到底停一下再補口白「釘估之」。'},
+    {id:'D',short:'第一回合',name:'第一回合',desc:'雙人對舞，阿北受擊反應（鏡 9–10）',chg:12,
+     runs:[r([9],[10],[],12,'Cam1 28mm 鎖定全景；Cam2 65mm 阿北胸上，同時錄')],
+     tip:'源寶畫右、阿北畫左，手機架移出主戰區。末拍 12.4 秒才命中。'},
+    {id:'E',short:'抽梳與第二回合',name:'抽梳與第二回合',desc:'抽梳、甩梳、滑步、源寶受擊（鏡 11–14）',chg:15,
+     runs:[r([12],[11],[13],12,'Cam1 28mm 雙人全景；Cam2 85mm 右腰抽梳；Cam3 85mm 鞋尖滑步（往畫左）'),r([],[],[14],6,'Cam3 85mm 源寶受擊臉；先保正常紫眼乾淨版')],
+     tip:'鏡 11 是抽出、鏡 7 是插入，動作方向相反，不能倒放替代。滑步時左右腳不互換。'},
+    {id:'F',short:'閃身步與找人',name:'閃身步與找人',desc:'閃身離框、源寶找人、肩旁閃回（鏡 15–18）',chg:12,
+     runs:[r([15,17],[],[16],12,'Cam1 28mm 鎖定不動，15 與 17 一鏡到底；Cam3 85mm 源寶找人臉'),r([],[18],[],8,'Cam2 50mm 肩旁閃回，有阿北版'),r([],[18],[],8,'Cam2 50mm 肩旁閃回，無阿北版（乾淨底，供遮罩）')],
+     tip:'「步」約 20.6 秒落下後阿北才向畫左離框，源寶不移腳。腳架、焦距、曝光鎖定。'},
+    {id:'G',short:'跟抖與瞬停',name:'跟抖與瞬停',desc:'兩人跟抖到瞬停降坐（鏡 19–21）',chg:10,
+     runs:[r([19,21],[],[20],12,'Cam1 28mm 一鏡到底；Cam3 100mm 源寶胸肩與雙爪')],
+     tip:'梳子固定在右腰。抖到最高點一起停，雙膝彎曲先降到坐姿、手撐地，不直接往後摔。'},
+    {id:'H',short:'K.O. 之後',name:'K.O. 之後',desc:'躺姿喘氣、摸腰、再比一場（鏡 22–25）',chg:12,
+     runs:[r([22],[24],[25],10,'Cam1 低機位雙人胸上 50mm；Cam2 阿北坐姿 50mm；Cam3 源寶坐姿臉 75mm'),r([23],[],[],6,'Cam1 換 85mm 拍摸腰手部')],
+     tip:'人物會累、衣服會髒，放這一支的後面拍。維持左阿北、右源寶，右腰梳子固定。'},
+    {id:'I',short:'結尾活動畫面',name:'結尾活動畫面',desc:'同指、直視定姿，供美術置入（鏡 26）',chg:6,
+     runs:[r([26],[],[],6,'同指鏡頭，定姿至少 5 秒'),r([26],[],[],6,'直視鏡頭，定姿至少 5 秒')],
+     tip:'背景用雙人定姿。同一張 9:16 活動畫面要留 7 秒，兩版各至少 5 秒。'}
+  ],
+  v2:[
+    {id:'A',short:'輸手機與吐槽',name:'輸手機與吐槽',desc:'阿伯打手機輸了，源寶吐槽，阿伯不服（鏡 1–5）',chg:12,
+     runs:[r([1],[2],[],6,'Cam1 24mm 雙人全景；Cam2 50mm 阿伯中景'),r([],[3,5],[4],9,'Cam2 換 85mm，一路拍阿伯失敗表情與反打；Cam3 65mm 源寶越肩（阿伯肩膀在畫左）')],
+     tip:'阿伯在畫左、源寶在畫右。鏡 3 與 5 是同一台 85mm 一路演；Cam1 沒有指派時一直錄保險全景。'},
+    {id:'B',short:'手指到亮道具',name:'手指到亮道具',desc:'手指遮鏡、俯拍取陀螺、雙方亮道具（鏡 6–11）',chg:15,
+     runs:[r([6],[8],[7],8,'Cam1 35mm 手指前景（指腹全遮至少 8 格）；Cam2 50mm 源寶中近景；Cam3 90 度俯拍'),r([10],[9],[11],8,'Cam1 40mm 雙人中景；Cam2 85mm 木陀螺與手；Cam3 換 105mm 拍阿伯半邊'),r([],[],[11],4,'Cam3 105mm 拍源寶半邊')],
+     tip:'俯拍時左邊木陀螺、右邊戰鬥陀螺，兩張牌在下，此時不戳紙。Cam3 拍完俯拍要撤掉俯拍架，換 105mm 拍臉。'},
+    {id:'C',short:'三回合對戰',name:'三回合對戰',desc:'首殺、雙殺、五殺到得獎（鏡 12–20）',chg:12,
+     runs:[r([12],[14],[13],12,'首殺：Cam1 28mm 主鏡；Cam2 135mm 阿伯眼角；Cam3 75mm 源寶受擊。反應現場完整演 3 秒'),r([15],[17],[16],12,'雙殺：Cam1 35mm 主鏡；Cam2 50mm 阿伯腰上；Cam3 75mm 源寶反應'),r([18],[19],[20],14,'五殺：Cam1 35mm 全景；Cam2 85mm 獎品與手部；Cam3 50mm 阿伯得意')],
+     tip:'陀螺會被撞飛，備品多帶。五殺的紙板預先鬆開。得獎手舉高的位置，鏡 19 與 20 要對得上。'},
+    {id:'D',short:'揭曉與結尾',name:'揭曉與結尾',desc:'大獎揭曉、看小獎、CTA（鏡 21–25）',chg:10,
+     runs:[r([22],[21],[24],9,'Cam1 35mm 雙人揭曉；Cam2 135mm 阿伯眼神；Cam3 35mm 源寶單人全景'),r([],[23],[],5,'Cam2 75mm 阿伯看小獎再看大獎，兩個視線都演完整'),r([25],[],[],12,'Cam1 40mm CTA，一條完整約 6 秒再定姿笑容至少 2 秒')],
+     tip:'第五格位置固定，芽芽卡升起位置固定。'}
+  ]
+};
+const PREP=[
+  ['p1','現場收音：對白常跨鏡，每一條都要有乾淨的現場聲'],
+  ['p2','記憶卡、電池、腳架、反光板、場記板'],
+  ['p11','三台相機統一格式、幀率與快門，記憶卡貼上 Cam1／Cam2／Cam3'],
+  ['p3','軸線標記：阿北／阿伯在畫左、源寶在畫右，全程不越軸'],
+  ['p4','第一支：梳子只有一把（不要帶第二把），確認右腰插梳位置'],
+  ['p5','第一支：手機＋手機架（鏡 1 在源寶右前方）、地面腳位標記'],
+  ['p6','第一支：黑皮鞋、黑褲腳、衣領與服裝連戲照片'],
+  ['p7','第一支：低機位坐躺姿用的地墊（鏡 22–25）'],
+  ['p8','第二支：木陀螺、戰鬥陀螺各備幾組（碰撞會被撞飛）'],
+  ['p9','第二支：五格紙板（預先鬆開紙格，另做一份分拍用）'],
+  ['p10','第二支：小獎一份（鏡 19–23 同一個）、橘凳、桌區位置標記']
+];
+
+/* ============ 工具 ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const key=(v,n)=>v+'_'+pad(n);
+const ST={todo:'未拍',ok:'OK',bak:'備用',ng:'NG'};
+const dur=s=>Math.round((s.t[1]-s.t[0])*100)/100;
+const fmtSec=x=>String(Math.round(x*100)/100);
+const SH=(v,n)=>SHOTS[v].find(s=>s.n===n);
+const BEAT_OF={v1:{},v2:{}},RUN_OF={v1:{},v2:{}},RUNS={v1:[],v2:[]};
+Object.keys(BEATS).forEach(v=>BEATS[v].forEach(b=>{
+  b.shots=[];
+  b.runs.forEach((rn,i)=>{
+    rn.beat=b;rn.label=b.id+(i+1);rn.ri=RUNS[v].length;RUNS[v].push(rn);
+    [1,2,3].forEach(c=>rn.c[c].forEach(n=>{
+      (RUN_OF[v][n]=RUN_OF[v][n]||[]).push({run:rn,cam:c});
+      if(!b.shots.includes(n))b.shots.push(n);
+    }));
+  });
+  b.shots.forEach(n=>{const a=(BEAT_OF[v][n]=BEAT_OF[v][n]||[]);if(!a.includes(b.id))a.push(b.id)});
+}));
+const runShots=rn=>[...new Set([...rn.c[1],...rn.c[2],...rn.c[3]])];
+const camOf=(v,n)=>[...new Set((RUN_OF[v][n]||[]).map(x=>x.cam))].map(c=>'Cam'+c).join('+')||'—';
+
+/* ============ 狀態與儲存 ============ */
+const LS='lcz-slate-v1';
+const defMeta=()=>({date:'2026-11-10',call:'12:00',speed:1,prep:{},cams:{1:'',2:'',3:''},sched:'real1'});
+let S={logs:{},meta:defMeta()};
+try{const j=JSON.parse(localStorage.getItem(LS)||'null');if(j){S.logs=j.logs||{};S.meta=Object.assign(defMeta(),j.meta||{});if(S.meta.sched!=='real1'){S.meta.call='12:00';S.meta.sched='real1'}}}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}};
+const blank=()=>({takes:0,st:'todo',ok:'',bak:'',file:'',note:'',ex:{},saves:[]});
+const L=k=>Object.assign(blank(),S.logs[k]||{});
+let db=null;const timers={},pend={},chain={};
+const busy=k=>!!timers[k]||pend[k]>0;
+function setSync(c,t){const e=$('#sync');e.className='sync '+c;e.textContent=t}
+function persist(k){
+  saveLocal();
+  if(!db)return;
+  clearTimeout(timers[k]);
+  timers[k]=setTimeout(()=>{
+    delete timers[k];pend[k]=(pend[k]||0)+1;
+    const body=JSON.parse(JSON.stringify(k==='meta'?S.meta:S.logs[k]));
+    const ref=k==='meta'?db.doc('meta/plan'):db.doc('logs/'+k);
+    chain[k]=(chain[k]||Promise.resolve()).then(()=>ref.set(body)).then(()=>setSync('ok','已同步'),()=>setSync('err','同步失敗，已存在此裝置')).then(()=>{pend[k]--});
+  },500);
+}
+function patch(k,o){S.logs[k]=Object.assign(L(k),o);persist(k)}
+function patchMeta(o){S.meta=Object.assign(S.meta,o);persist('meta')}
+
+/* ============ 排程 ============ */
+function fmtT(m){m=Math.round(m);return pad(Math.floor(m/60)%24)+':'+pad(m%60)}
+const beatMin=(b,sp)=>Math.round((b.chg+b.runs.reduce((a,x)=>a+x.min,0))*sp);
+function build(){
+  /* 照正式「拍攝流程表」：時間是固定的，每個視窗裡的組按原估分鐘數等比例分配 */
+  const [h,m]=S.meta.call.split(':').map(Number);let t=(h||0)*60+(m||0);
+  const items=[];
+  const push=(o,d)=>{o.start=t;t+=d;o.end=t;items.push(o)};
+  const win=(v,part,total,ids,desc)=>{
+    const bs=BEATS[v].filter(b=>ids.includes(b.id));
+    const est=bs.reduce((a,b)=>a+beatMin(b,1),0);
+    items.push({kind:'vid',v,start:t,part});
+    if(desc)items.push({kind:'note',text:desc+'　共 '+total+' 分鐘，原本估要 '+est+' 分鐘'+(est>total?'，時間很緊，要抓重點、少 take。':'。')});
+    let left=total;
+    bs.forEach((b,i)=>{const o=beatMin(b,1);const d=i===bs.length-1?left:Math.round(o*total/est);left-=d;push({kind:'beat',v,b,orig:o},d)});
+  };
+  push({kind:'plain',title:'劇組進場 · 場佈',desc:'檢查攝影及燈光設備、確認場景與道具'},60);
+  push({kind:'plain',title:'藝人妝髮 · 拍前準備',desc:'舞棍阿北到場、妝髮梳化及更換亮片裝；源寶偶裝配件測試。確認造型、源寶活動性與演出安全'},40);
+  push({kind:'plain',title:'PART 1　主視覺平面形象照',desc:'阿北拿梳子與源寶招牌合照、趣味互動、雙人與單人素材。可同步進行動作指導與走位排練。流程：先拍阿伯（藍衣）平面 → 換源寶平面，阿伯同時拍短影音 1 單人鏡頭（見下方「演員輪流拍法」）'},95);
+  push({kind:'plain',title:'中場休息'},15);
+  win('v1','PART 2　短影音 1',90,BEATS.v1.map(b=>b.id),'源寶平面拍完後，兩人一起拍短影音 1 剩下的部分，依腳本及分鏡執行。阿伯單人鏡頭若已在 PART 1 拍掉，這段會寬鬆很多。');
+  push({kind:'plain',title:'換場 · 道具確認',desc:'確認道具、場景與鏡位'},15);
+  win('v2','PART 3　短影音 2 前半段',45,['A','B'],'');
+  push({kind:'plain',title:'晚餐 · 休息',desc:'晚間放飯，藝人休息室用餐與補妝。劇組同步備份檔案'},40);
+  win('v2','PART 4　短影音 2 補拍',90,['C','D'],'短影音 2 後半段與特寫補拍；結尾段落、阿北（阿伯）單人特寫、安全空鏡。');
+  push({kind:'plain',title:'最終確認 · 殺青',desc:'核對素材與現場收尾；確認必要畫面、備份及補拍清單'},20);
+  return items;
+}
+function dateLabel(){
+  try{const d=new Date(S.meta.date+'T00:00:00');if(isNaN(d))return S.meta.date;
+    return d.toLocaleDateString('zh-TW',{month:'numeric',day:'numeric',weekday:'short'})}catch(e){return S.meta.date}
+}
+
+/* ============ 統計 ============ */
+function counts(v){
+  const c={todo:0,ok:0,bak:0,ng:0,total:SHOTS[v].length,takes:0};
+  SHOTS[v].forEach(s=>{const l=L(key(v,s.n));c[l.st]++;c.takes+=l.takes});
+  return c;
+}
+function barHtml(c){
+  const p=x=>(x/c.total*100).toFixed(2);
+  return `<div class="bar" role="img" aria-label="OK ${c.ok}，備用 ${c.bak}，NG ${c.ng}，未拍 ${c.todo}"><i class="ok" style="width:${p(c.ok)}%"></i><i class="bak" style="width:${p(c.bak)}%"></i><i class="ng" style="width:${p(c.ng)}%"></i></div>
+  <div class="lgd"><span>OK <b>${c.ok}</b></span><span>備用 <b>${c.bak}</b></span><span>NG <b>${c.ng}</b></span><span>未拍 <b>${c.todo}</b></span><span>共 <b>${c.takes}</b> 次 take</span></div>`;
+}
+
+/* ============ 畫面 ============ */
+let tab='plan';const F={v1:{su:'all',st:'all',who:'all'},v2:{su:'all',st:'all',who:'all'}};const openSet=new Set();
+const TABS=[['plan','排程'],['live','現場'],['log','場記'],['edit','剪輯']];
+const ROLES=[['all','全部'],['c1','Cam1'],['c2','Cam2'],['c3','Cam3'],['log','場記']];
+const UI_KEY='lcz-ui-v1';
+let UI={lv:'v1',role:'all',tab:'plan',cur:{v1:null,v2:null}};
+try{const j=JSON.parse(localStorage.getItem(UI_KEY)||'null');if(j){UI.lv=j.lv==='v2'?'v2':'v1';UI.role=ROLES.some(x=>x[0]===j.role)?j.role:'all';UI.tab=j.tab||'plan';UI.cur=Object.assign(UI.cur,j.cur||{})}}catch(e){}
+const saveUI=()=>{try{localStorage.setItem(UI_KEY,JSON.stringify(UI))}catch(e){}};
+let LSEL={};
+function curRun(v){
+  let i=UI.cur[v];
+  if(typeof i!=='number'||i<0||i>=RUNS[v].length){
+    i=RUNS[v].findIndex(rn=>runShots(rn).some(n=>L(key(v,n)).st==='todo'));
+    if(i<0)i=0;
+  }
+  UI.cur[v]=i;return i;
+}
+const selKey=()=>UI.lv+':'+curRun(UI.lv);
+const isSel=n=>(LSEL[selKey()]||{})[n]!==false;
+
+function renderTabs(){
+  const c1=counts('v1'),c2=counts('v2');
+  const cr=RUNS[UI.lv][curRun(UI.lv)];
+  const sub={plan:dateLabel(),live:cr.label,log:`${c1.ok+c2.ok}/${c1.total+c2.total}`,edit:`${c1.ok+c1.bak+c2.ok+c2.bak}可用`};
+  $('#tabs').innerHTML=TABS.map(([id,n])=>`<button type="button" data-act="tab" data-tab="${id}" aria-selected="${tab===id}"><b>${n}</b><span>${esc(sub[id])}</span></button>`).join('');
+  $('#subline').textContent='拍攝日 '+dateLabel()+' · 兩支各 40 秒 · 共 '+(V1.length+V2.length)+' 個鏡頭';
+}
+
+const SIZE_HELP=[
+  [/俯拍/,'相機在正上方，往下拍桌面'],
+  [/越肩/,'從一個人的肩膀後面，拍另一個人'],
+  [/分割/,'兩人各拍一半，後製拼成左右分割畫面。拍的時候一次只拍一個人'],
+  [/活動資訊/,'這張是後製放活動資訊的畫面，現場只負責拍背景定姿'],
+  [/大特寫/,'畫面被一個小局部填滿，例如眼睛、手指'],
+  [/特寫/,'只拍臉，或手、道具等一個局部，其他不要入框'],
+  [/中近景/,'拍到胸口到腰之間'],
+  [/近景/,'拍到胸口以上'],
+  [/全景/,'拍到人物全身，也看得到周圍環境'],
+  [/中景/,'拍到人物膝蓋或腰以上'],
+  [/主鏡/,'把兩個人和整段動作一起拍清楚的主要畫面'],
+  [/胸上/,'拍到胸口以上']
+];
+const sizeHelp=z=>{const m=SIZE_HELP.find(x=>x[0].test(z));return m?m[1]:''};
+const camRole=(v,c)=>c===1?'全景或主鏡':c===2?(v==='v1'?'阿北那一側':'阿伯那一側'):'源寶那一側、特寫、俯拍';
+
+const GUIDE_HTML=`<section class="panel"><h3>你是誰？先點哪裡</h3><ul class="steps" style="margin-top:8px">
+<li><b>攝影師</b>：點「現場」，選你的 Cam。只會顯示你這台每一輪要拍什麼、畫面怎麼放、演員做什麼。</li>
+<li><b>場記</b>：點「現場」，選「場記」。每一輪拍完按 OK、備用或 NG，並記每台的檔案號。</li>
+<li><b>導演、製片</b>：「排程」看整天時間，「場記」看全部鏡頭進度，「剪輯」看哪些畫面可以用。</li></ul></section>`;
+const GLOSS=[
+ ['鏡號','分鏡表上的編號，成片是 01 到最後一號依序播出。現場拍攝順序不照號碼。'],
+ ['組、輪','連在一起的鏡頭編成一「組」（A、B…）。同一組演幾次叫幾「輪」（A1、A2…）。每一輪三台一起錄。'],
+ ['Cam1/2/3','三台相機。Cam1 拍全景或主鏡；Cam2 在阿北／阿伯那一側；Cam3 在源寶那一側，也拍特寫和俯拍。'],
+ ['畫面大小','全景＝全身加環境。中景＝膝蓋或腰以上。近景＝胸口以上。特寫＝只拍臉或手等局部。大特寫＝填滿畫面的小局部，例如眼睛。'],
+ ['鏡頭 mm','全片幅等效焦段。數字小看得廣（24mm），數字大拍得近、範圍窄（135mm）。相機不是全片幅的要自己換算。'],
+ ['分鏡圖上的機位字','圖上標的「A機、D機」是分鏡原本的機位代號，不是這三台相機。現場請照 Cam1／2／3。'],
+ ['越肩','從一個人的肩膀後面拍另一個人。'],
+ ['主鏡、保險全景','把兩個人和整段動作一起拍下來的畫面。剪輯不確定怎麼接時，回頭用它。'],
+ ['Take','同一個鏡頭演一次叫一個 Take，第一次是 Take 1。'],
+ ['OK／備用／NG','OK＝最好用的一條。備用＝能用但次選。NG＝不能用，但檔案不要刪。'],
+ ['檔案號','相機自動產生的檔名，例如 C0123。要記是哪一台的檔，剪輯才找得到。'],
+ ['連戲','前後鏡頭裡的東西要一致：衣服、梳子在手上還是腰上、手的方向、誰在左誰在右。'],
+ ['軸線、越軸','兩人之間想像一條線，三台都在同一側拍，畫面左右才不會跳。跑到另一側就是越軸。'],
+ ['乾淨版','沒有某個人或特效的版本，給後製遮罩合成用。'],
+ ['場板','每輪開錄前對鏡頭唸「組輪、Take」，讓剪輯找得到這一條。'],
+ ['成片秒數','這個鏡頭在 40 秒成片裡出現的時間。有的只有 0.3 秒，但現場仍要把整段表演拍完整，剪輯再取秒數。']
+];
+const GLOSS_HTML=`<details class="panel gloss"><summary>名詞說明（看不懂先看這裡）</summary><dl class="info">${GLOSS.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></details>`;
+
+const vsw=()=>`<div class="seg vsw" role="group" aria-label="影片">${['v1','v2'].map(v=>`<button type="button" data-act="vsw" data-v="${v}" aria-pressed="${UI.lv===v}">${META[v].name}</button>`).join('')}</div>`;
+
+let ZM=null;
+const imgSrc=(v,n)=>`img/${v}_${pad(n)}.jpg`;
+const thumbBtn=()=>''; /* 公開版不放分鏡圖 */
+function renderZoom(){
+  const el=$('#zoom');
+  if(!ZM){el.hidden=true;el.innerHTML='';return}
+  const s=SH(ZM.v,ZM.n);el.hidden=false;
+  const wb='style="color:#fff;border-color:#fff"';
+  el.innerHTML=`<img src="${imgSrc(ZM.v,ZM.n)}" alt="分鏡圖 鏡${pad(ZM.n)} ${esc(s.size)}">
+    <div class="cap"><b>鏡${pad(ZM.n)}　${esc(s.size)}${s.mm?'　'+s.mm+'mm':''}</b><br><span style="opacity:.8">圖上的「A機、D機」是分鏡原本的機位代號，現場請照 Cam1／2／3</span></div>
+    <div class="snav" style="width:100%;max-width:420px"><button type="button" class="btn ghost" ${wb} data-act="znav" data-d="-1">◀ 上一鏡</button><button type="button" class="btn ghost" ${wb} data-act="zclose">關閉</button><button type="button" class="btn ghost" ${wb} data-act="znav" data-d="1">下一鏡 ▶</button></div>`;
+}
+function taskHtml(v,n){
+  const s=SH(v,n),l=L(key(v,n)),d=dur(s),help=sizeHelp(s.size);
+  return `<div class="task"><div class="trow">${thumbBtn(v,n)}
+    <div class="tcol"><div class="thead"><span class="no sm">${pad(n)}</span>
+      <div><b>${esc(s.size)}</b> ${whoTag(s)}<div class="small muted">${s.mm?'鏡頭 '+s.mm+'mm · ':''}成片用 ${fmtSec(d)} 秒</div></div>
+      <span class="pill ${l.st}">${ST[l.st]}</span></div>
+    ${help?`<p class="hint">${esc(help)}</p>`:''}
+    ${d<2?`<p class="warnline">成片只用 ${fmtSec(d)} 秒，但現場請把整段表演拍完整，剪輯再取秒數。</p>`:''}</div></div>
+    <dl class="info"><dt>畫面怎麼放</dt><dd>${esc(s.comp)}</dd><dt>演員做什麼</dt><dd>${esc(s.act)}</dd>${s.line&&s.line!=='無台詞'?`<dt>台詞</dt><dd>${esc(s.line)}</dd>`:''}</dl></div>`;
+}
+function camCard(v,rn,c){
+  const a=rn.c[c];
+  const body=a.length
+    ?a.map(n=>taskHtml(v,n)).join('')+(a.length>1?'<p class="hint">這一輪這台連續拍上面這幾個鏡頭，中間不要停機。</p>':'')
+    :(c===1?'<p class="idle">這一輪沒有指定鏡頭。請錄整段雙人全景當保險，讓剪輯有備案。</p>':'<p class="idle">這一輪這台不用拍，可以先準備下一輪的鏡頭和位置。</p>');
+  return `<section class="camcard"><h3>Cam${c}<span class="muted small">${camRole(v,c)}</span></h3>${body}</section>`;
+}
+function nextFor(v,ri,c){
+  for(let i=ri+1;i<RUNS[v].length;i++){const x=RUNS[v][i];if(x.c[c].length)return {x,s:SH(v,x.c[c][0])}}
+  return null;
+}
+const CAM_STEPS='<ol class="steps"><li>聽到場板後，三台一起按錄影。</li><li>演員開始前多錄 2–3 秒，動作結束後再多錄 3 秒。</li><li>演完先別停，等導演喊卡。</li><li>NG 的檔案不要刪，把這一輪的檔案號告訴場記。</li></ol>';
+
+let CLR=false;
+function saveBlock(k){
+  const l=L(k),sv=l.saves||[];
+  const list=sv.map(x=>`<li><span class="sv-t mono">${esc(x.time)}</span><span class="sv-b"><b>${esc(x.res)}${x.take?'　第'+x.take+'次':''}</b>${x.file?'　檔案 '+esc(x.file):''}${x.note?'　'+esc(x.note):''}</span><button type="button" class="sv-x" data-act="sdel" data-k="${k}" data-id="${x.id}" aria-label="刪除這筆">刪除</button></li>`).join('');
+  return `<div class="saves"><button type="button" class="btn acc" data-act="save" data-k="${k}">儲存這一條</button>${sv.length?`<ul class="svlist">${list}</ul>`:'<span class="small muted">按「儲存這一條」會把目前的狀態、次數、檔案號、備註存成一筆，下面會列出來，可單筆刪除。</span>'}</div>`;
+}
+function logCard(v,rn){
+  const ns=runShots(rn),t=runTake(v,rn);
+  const lines=ns.map(n=>SH(v,n)).filter(s=>s.line&&s.line!=='無台詞').map(s=>`<li><b>鏡${pad(s.n)}</b>　${esc(s.line)}</li>`).join('');
+  const cont=ns.map(n=>{const s=SH(v,n);return `<li><b>鏡${pad(s.n)}</b>${s.comb?`　<span class="tag warn">梳子：${esc(s.comb)}</span>`:''}　${esc(s.link)}</li>`}).join('');
+  const exs=ns.flatMap(n=>(SH(v,n).ex||[]).map((txt,i)=>({n,i,txt}))).map(({n,i,txt})=>{const k=key(v,n),l=L(k);return `<label><input type="checkbox" data-act="ex" data-k="${k}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(n)}　${esc(txt)}</span></label>`}).join('');
+  const rows=ns.map(n=>{const k=key(v,n),l=L(k);
+    return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span class="pill ${l.st}" style="justify-self:end">${ST[l.st]}${l.takes?'　'+l.takes+'次':''}</span>
+      <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔案號" aria-label="鏡${pad(n)} 檔案號"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k)}</div>`}).join('');
+  return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
+    <ol class="steps"><li>把場板對著鏡頭，唸「${esc(rn.label)}、Take ${t}」。</li><li>三台一起錄，演員表演。</li><li>導演喊卡後，按下面的 OK、備用或 NG。</li><li>記每台的檔案號。</li></ol>
+    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
+    ${lines?`<div><b class="small">台詞</b><ul class="steps plain">${lines}</ul></div>`:''}
+    <div><b class="small">連戲重點（前後要對得上）</b><ul class="steps plain">${cont}</ul></div>
+    ${exs?`<div><b class="small">要多拍的保險版（拍了就打勾）</b><div class="ex" style="margin-top:4px">${exs}</div></div>`:''}
+    <div><b class="small">記錄（勾選的鏡頭才會被記）</b>${rows}</div>
+    <div class="sact"><button type="button" class="a-ok" data-act="lrec" data-r="ok">這條 OK</button><button type="button" class="a-bak" data-act="lrec" data-r="bak">這條備用</button><button type="button" class="a-ng" data-act="lrec" data-r="ng">這條 NG</button><button type="button" class="a-n" data-act="lrec" data-r="n">只記一次</button></div>
+  </section>`;
+}
+function storyHtml(v,rn){
+  const ns=[...runShots(rn)].sort((a,b)=>a-b);
+  const li=ns.map(n=>{const x=SH(v,n);return `<li><b>鏡${pad(n)}</b> ${whoTag(x)}　${esc(x.act)}${x.line&&x.line!=='無台詞'?`<div class="dialog" style="margin-top:4px">${esc(x.line)}</div>`:''}</li>`}).join('');
+  return `<section class="camcard"><h3>這一輪的劇情<span class="muted small">照故事順序，先看懂在演什麼</span></h3><ol class="steps plain">${li}</ol></section>`;
+}
+function viewLive(){
+  const v=UI.lv,ri=curRun(v),rn=RUNS[v][ri],b=rn.beat,role=UI.role;
+  const done=runShots(rn).every(n=>L(key(v,n)).st!=='todo');
+  const opts=RUNS[v].map(x=>`<option value="${x.ri}" ${x.ri===ri?'selected':''}>${x.label}　${esc(x.beat.name)}（鏡 ${runShots(x).map(n=>pad(n)).join('、')}）</option>`).join('');
+  const showCam=c=>role==='all'||role==='c'+c;
+  const camRole1=/^c[123]$/.test(role)?+role[1]:0;
+  const nx=camRole1?nextFor(v,ri,camRole1):null;
+  const summary=role==='log'?`<section class="camcard"><h3>這一輪各台拍什麼</h3><ul class="steps plain">${[1,2,3].map(c=>`<li><b>Cam${c}</b>　${rn.c[c].length?rn.c[c].map(n=>`鏡${pad(n)} ${esc(SH(v,n).size)}${SH(v,n).mm?' '+SH(v,n).mm+'mm':''}`).join('、'):(c===1?'保險全景':'不拍')}</li>`).join('')}</ul></section>`:'';
+  return `${vsw()}
+  <div class="runbar"><button type="button" class="btn ghost" data-act="runnav" data-d="-1" ${ri===0?'disabled':''} aria-label="上一輪">◀</button>
+    <select id="f-run" aria-label="選擇這一輪">${opts}</select>
+    <button type="button" class="btn ghost" data-act="runnav" data-d="1" ${ri===RUNS[v].length-1?'disabled':''} aria-label="下一輪">▶</button></div>
+  <div class="filters" role="group" aria-label="我是">${ROLES.map(([id,n])=>`<button type="button" class="fchip" data-act="role" data-id="${id}" aria-pressed="${role===id}">${n}</button>`).join('')}</div>
+  <section class="runhead"><div class="rl">${esc(rn.label)}</div><div style="min-width:0"><h2 style="margin:0">${esc(b.name)}</h2><div class="small muted">${esc(b.desc)}</div></div><span class="pill ${done?'ok':''}" style="margin-left:auto">${done?'已拍':'未拍完'}</span></section>
+  ${(()=>{const ns=runShots(rn);const aa=ns.filter(n=>SH(v,n).who==='a');return aa.length?`<p class="note"><b>阿伯單人鏡頭：</b>鏡${aa.map(pad).join('、')}。源寶在拍平面時，可以先只拍阿伯的這幾個。</p>`:''})()}
+  ${rn.note?`<p class="note"><b>這一輪拍法：</b>${esc(rn.note)}</p>`:''}
+  <p class="note">${esc(b.tip)}</p>
+  <p class="small muted">分鏡原本的「A機、D機」是機位代號，現場請照 Cam1／2／3。</p>
+  ${storyHtml(v,rn)}
+  ${camRole1?`<section class="camcard"><h3>攝影師通用做法</h3>${CAM_STEPS}</section>`:''}
+  ${summary}
+  ${[1,2,3].filter(showCam).map(c=>camCard(v,rn,c)).join('')}
+  ${nx?`<p class="note"><b>你的下一個任務：</b>${nx.x.label}（${esc(nx.x.beat.name)}）鏡${pad(nx.s.n)} ${esc(nx.s.size)}${nx.s.mm?'，'+nx.s.mm+'mm':''}。可以先準備。</p>`:''}
+  ${(role==='all'||role==='log')?logCard(v,rn):''}
+  <div class="runbar"><button type="button" class="btn ghost" data-act="runnav" data-d="-1" ${ri===0?'disabled':''}>◀ 上一輪</button><span></span><button type="button" class="btn acc" data-act="runnav" data-d="1" ${ri===RUNS[v].length-1?'disabled':''}>下一輪 ▶</button></div>`;
+}
+
+function chipHtml(v,n){const st=L(key(v,n)).st;return `<button type="button" class="chip st-${st}" data-act="go" data-v="${v}" data-n="${n}" title="${esc(SH(v,n).size)}（${ST[st]}）">${pad(n)}</button>`}
+
+function camCell(v,rn,c){
+  const a=rn.c[c];
+  if(!a.length)return c===1?'<span class="tag">保險全景</span>':'<span class="muted" style="text-align:center">—</span>';
+  return a.map(n=>{const s=SH(v,n),st=L(key(v,n)).st;return `<button type="button" class="chip sm st-${st}" data-act="go" data-v="${v}" data-n="${n}" title="${esc(s.size)}（${ST[st]}）">${pad(n)}<small>${s.mm?s.mm+'mm':'圖卡'}</small></button>`}).join('');
+}
+function flowHtml(){
+  const col=(v,k,ttl,help)=>{const ns=SHOTS[v].filter(x=>k.includes(x.who)).map(x=>x.n);return `<div class="flowcol"><b class="small">${ttl}</b><div class="small muted">${help}</div><div class="chips">${ns.map(n=>chipHtml(v,n)).join('')||'<span class="muted small">—</span>'}</div></div>`};
+  const blk=(v,name,cos)=>`<div class="flowblk"><h4>${name}　${cos}</h4>
+    ${col(v,['a','s'],'① 阿伯單人鏡頭','源寶在拍平面的時候，阿伯同步先拍這些。對手的台詞由場記在旁邊唸，讓阿伯有視線和反應。')}
+    ${col(v,['y','d','g'],'② 兩人到齊後拍','源寶平面拍完，兩人一起拍剩下的（源寶單人＋雙人＋活動資訊）。分割鏡頭的源寶那一半也在這時拍。')}</div>`;
+  return `<section class="panel"><h3>演員輪流拍法</h3>
+  <ol class="steps"><li>阿伯（藍色衣服）拍平面。</li><li>換源寶拍平面。<b>這段時間阿伯同步拍第一支的單人鏡頭。</b></li><li>源寶平面拍完，兩人一起拍第一支剩下的部分。</li><li>第一組全部拍完，阿伯換金色衣服，第二支照同樣順序再來一次。</li></ol>
+  <p class="small muted">點下面的鏡號會跳到場記頁那一鏡。阿伯單人的鏡頭，3 台可以輪流拍，不一定要三台同時開。</p>
+  ${blk('v1','第一支 尬舞','藍色衣服')}${blk('v2','第二支 童玩大挑戰','金色衣服')}</section>`;
+}
+function viewPlan(){
+  const items=build();const c1=counts('v1'),c2=counts('v2');
+  const first=items[0].start,last=items[items.length-1].end;
+  const tl=items.map(it=>{
+    if(it.kind==='vid')return `<div class="tl-item"><div></div><div class="tl-vid">${esc(META[it.v].name)}${it.part?'　'+esc(it.part):''}</div></div>`;
+    if(it.kind==='note')return `<div class="tl-item"><div></div><div class="tl-body"><p class="note" style="margin:0">${esc(it.text)}</p></div></div>`;
+    const time=`<div class="tl-time">${fmtT(it.start)}<small>${it.end-it.start}分</small></div>`;
+    if(it.kind==='plain')return `<div class="tl-item">${time}<div class="tl-body"><div class="tl-plain"><b>${esc(it.title)}</b>${it.desc?`<div class="small muted">${esc(it.desc)}</div>`:''}</div></div></div>`;
+    const b=it.b,v=it.v;
+    const runs=b.runs.map(rn=>`<button type="button" class="rlab" data-act="gorun" data-v="${v}" data-ri="${rn.ri}" aria-label="${rn.label} 到現場頁">${rn.label}</button>${[1,2,3].map(c=>`<div class="cell">${camCell(v,rn,c)}</div>`).join('')}${rn.note?`<div class="rnote">${esc(rn.note)}</div>`:''}`).join('');
+    return `<div class="tl-item">${time}<div class="tl-body"><div class="block">
+      <div class="bh"><b>${b.id}　${esc(b.name)}</b><span>${fmtT(it.start)}–${fmtT(it.end)} · ${b.shots.length}鏡 · ${b.runs.length}輪${it.orig&&it.orig>it.end-it.start?' · 原估 '+it.orig+' 分':''}</span></div>
+      <div class="small muted">${esc(b.desc)}</div>
+      <div class="runs"><div></div><div class="rh">Cam1</div><div class="rh">Cam2</div><div class="rh">Cam3</div>${runs}</div>
+      <div class="small">${esc(b.tip)}</div></div></div></div>`;
+  }).join('');
+  const prep=PREP.map(([id,t])=>`<label class="chk"><input type="checkbox" data-act="prep" data-id="${id}" ${S.meta.prep&&S.meta.prep[id]?'checked':''}> <span>${esc(t)}</span></label>`).join('');
+  return `
+  <section class="panel howto"><h3>怎麼用（3 步）</h3><ol class="steps"><li>先看下面「當天順序」，點 A1、B1 這種按鈕，會跳到「現場」頁那一輪。</li><li>現場頁選你是 Cam1／Cam2／Cam3 還是場記，只看你要做的事。</li><li>拍完在「場記」頁每個鏡頭按 OK／備用／NG，再按「儲存這一條」留一筆紀錄。</li></ol>
+    <button type="button" class="btn ${CLR?'danger':'ghost'}" data-act="clearall">${CLR?'再按一次，確定全部清空':'全部清空'}</button><span class="small muted"> 清掉所有鏡頭紀錄和拍前準備勾選（日期、時間保留）。</span></section>
+  <section class="panel camset"><h3>這次用的機器</h3><div class="small muted">填機型（例如 FX3、A7S3），全頁的 Cam1／2／3 後面會自動加上。之後想換機位，直接改這裡，整頁一起換。</div>
+    <div class="camfields">${[1,2,3].map(c=>`<label>Cam${c} 機型<input data-cam="${c}" value="${esc((S.meta.cams||{})[c]||'')}" placeholder="${['例 FX3','例 A7S3','例 其他機型'][c-1]}" maxlength="20"></label>`).join('')}</div></section>
+  <section class="panel settings">
+    <label>拍攝日<input type="date" id="f-date" value="${esc(S.meta.date)}"></label>
+    <label>劇組進場時間<input type="time" id="f-call" value="${esc(S.meta.call)}"></label>
+  </section>
+  <section class="prog">
+    <div class="panel"><h3>第一支 尬舞</h3>${barHtml(c1)}</div>
+    <div class="panel"><h3>第二支 童玩大挑戰</h3>${barHtml(c2)}</div>
+  </section>
+  <p class="note"><b>照正式拍攝流程表：${fmtT(first)} 劇組進場，${fmtT(last)} 殺青。</b>下面每一段時間都是流程表定的，短影音 1 只有 90 分鐘（15 輪，平均每輪約 6 分鐘），要抓緊。三台一起錄，同一次表演就拿到全景、阿北／阿伯、源寶三個角度，所以不用每個鏡頭各演一遍。連在一起的鏡頭編成「組」（A、B…），每組拍幾「輪」（A1、A2…）。每一輪三台一起按錄影，場板對三台一次。</p>
+  <p class="note"><b>三台分工：</b>Cam1 拍全景或主鏡，沒被指派鏡頭時當保險全景一直錄。Cam2 在阿北／阿伯那一側。Cam3 在源寶那一側，也負責特寫和俯拍。三台不要拍到彼此。每個鏡頭的檔案號要記是哪一台的檔。</p>
+  <p class="note"><b>軸線：</b>第一支阿北在畫左、源寶在畫右。第二支阿伯在畫左、源寶在畫右。三台都架在同一側。</p>
+  ${flowHtml()}
+  ${GUIDE_HTML}${GLOSS_HTML}
+  <h2>當天順序</h2>
+  <p class="small muted">點組輪按鈕（例如 A1）會跳到「現場」頁的那一輪。</p>
+  <div class="tl">${tl}</div>
+  <h2>拍前準備</h2>
+  <section class="panel ex">${prep}</section>`;
+}
+
+function cardHtml(v,s){
+  const k=key(v,s.n),l=L(k);
+  const asg=RUN_OF[v][s.n]||[];
+  const tags=[];
+  tags.push(whoTag(s));
+  if(s.ref)tags.push(`<span class="tag">圖稿 ${esc(s.ref)}</span>`);
+  if(s.comb)tags.push(`<span class="tag warn">梳子：${esc(s.comb)}</span>`);
+  asg.forEach(x=>tags.push(`<span class="tag warn">${x.run.label} · Cam${x.cam}</span>`));
+  const mm=s.mm?` · ${s.mm}mm`:'';
+  const row=(a,b)=>b?`<dt>${a}</dt><dd>${esc(b)}</dd>`:'';
+  const how=[...new Set(asg.map(x=>x.run.note).filter(Boolean))].join('；');
+  const ex=(s.ex||[]).map((t,i)=>`<label><input type="checkbox" data-act="ex" data-k="${k}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>${esc(t)}</span></label>`).join('');
+  return `<article class="shot st-${l.st}" id="sh-${k}">
+  <div class="shead"><div class="no">${pad(s.n)}</div>
+    <div class="meta"><b>${esc(s.size)}</b><span>${camOf(v,s.n)}${mm} · 成片 ${fmtSec(s.t[0])}–${fmtSec(s.t[1])}s（${fmtSec(dur(s))}s）</span></div>
+    <button type="button" class="btn acc" data-act="slate" data-v="${v}" data-n="${s.n}">場板</button></div>
+  <div class="shotrow">${thumbBtn(v,s.n)}<div class="shotcol">
+  ${sizeHelp(s.size)?`<div class="small muted">${esc(sizeHelp(s.size))}</div>`:''}
+  ${s.line?`<div class="dialog">${esc(s.line)}</div>`:`<div class="dialog">${esc(s.act)}</div>`}
+  ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
+  </div></div>
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="狀態">${Object.keys(ST).map(x=>`<button type="button" data-act="st" data-k="${k}" data-v="${x}" aria-pressed="${l.st===x}">${ST[x]}</button>`).join('')}</div>
+    <div class="step"><button type="button" data-act="tk" data-k="${k}" data-d="-1" aria-label="少一次">−</button><output>已拍 ${l.takes} 次</output><button type="button" data-act="tk" data-k="${k}" data-d="1" aria-label="多一次">+</button></div>
+  </div>
+  <div class="fields">
+    <label>OK 是第幾條<input data-f="ok" data-k="${k}" inputmode="numeric" value="${esc(l.ok)}" placeholder="例 3"></label>
+    <label>備用第幾條<input data-f="bak" data-k="${k}" inputmode="numeric" value="${esc(l.bak)}" placeholder="例 2"></label>
+    <label>檔案號（${camOf(v,s.n)}）<input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="例 C0123"></label>
+    <label class="wide">備註<input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="例 這條口白漏字，動作好"></label>
+  </div>
+  ${saveBlock(k)}
+  ${ex?`<div class="ex">${ex}</div>`:''}
+  <details data-d="${k}" ${openSet.has(k)?'open':''}><summary>拍法細節</summary><dl class="info">
+    ${row('這輪拍法',how)}${row('畫面怎麼放',s.comp)}${row('演員做什麼',s.act)}${row('台詞',s.line)}${row('40秒版用',s.cut)}${row('接下一鏡',s.link)}${row('後製與聲音',s.fx)}
+  </dl></details></article>`;
+}
+function viewLog(v){
+  const f=F[v],c=counts(v);
+  const list=SHOTS[v].filter(s=>(f.su==='all'||(BEAT_OF[v][s.n]||[]).includes(f.su))&&(f.st==='all'||L(key(v,s.n)).st===f.st)&&(!f.who||f.who==='all'||s.who===f.who));
+  const fs=[['all','全部'],...BEATS[v].map(x=>[x.id,x.id+' '+x.short])];
+  const fst=[['all','全部'],['todo','未拍'],['ok','OK'],['bak','備用'],['ng','NG']];
+  const fwho=[['all','全部人'],['a','阿伯單人'],['y','源寶單人'],['d','兩人同框'],['s','分割'],['g','活動資訊']];
+  return `${vsw()}<section class="panel"><h3>${esc(META[v].name)}</h3>${barHtml(c)}</section>
+  <div class="filters" role="group" aria-label="人">${fwho.map(([id,n])=>`<button type="button" class="fchip" data-act="fwho" data-v="${v}" data-id="${id}" aria-pressed="${(F[v].who||'all')===id}">${n}</button>`).join('')}</div>
+  <div class="filters" role="group" aria-label="組">${fs.map(([id,n])=>`<button type="button" class="fchip" data-act="fsu" data-v="${v}" data-id="${id}" aria-pressed="${f.su===id}">${esc(n)}</button>`).join('')}</div>
+  <div class="filters" role="group" aria-label="狀態">${fst.map(([id,n])=>`<button type="button" class="fchip" data-act="fst" data-v="${v}" data-id="${id}" aria-pressed="${f.st===id}">${n}</button>`).join('')}</div>
+  ${list.map(s=>cardHtml(v,s)).join('')||'<p class="empty">沒有符合的鏡頭</p>'}`;
+}
+
+function exportText(v){
+  const out=[`【${META[v].name}】`];const miss=[];
+  SHOTS[v].forEach(s=>{
+    const l=L(key(v,s.n));
+    const head=`鏡${pad(s.n)}｜${fmtSec(s.t[0])}–${fmtSec(s.t[1])}s｜${camOf(v,s.n)} ${s.size}${s.mm?' '+s.mm+'mm':''}`;
+    if(l.st==='ok'||l.st==='bak'){
+      out.push(head+`｜${ST[l.st]}${l.ok?' 第'+l.ok+'條':''}${l.bak?'／備用第'+l.bak+'條':''}${l.file?'｜檔案 '+l.file:''}${l.note?'｜'+l.note:''}`);
+      (l.saves||[]).forEach(x=>out.push(`　└ ${x.time} ${x.res}${x.take?' 第'+x.take+'次':''}${x.file?'｜檔案 '+x.file:''}${x.note?'｜'+x.note:''}`));
+    }else miss.push(`鏡${pad(s.n)} ${s.size}（${ST[l.st]}）`);
+  });
+  if(miss.length)out.push('','還沒有可用素材：'+miss.join('、'));
+  return camLabel(out.join('\n'));
+}
+function viewEdit(){
+  const blocks=['v1','v2'].map(v=>{
+    const c=counts(v);const total=SHOTS[v][SHOTS[v].length-1].t[1];
+    const strip=SHOTS[v].map(s=>{const st=L(key(v,s.n)).st,d=dur(s);return `<i class="st-${st}" style="flex:${d} 1 0" title="鏡${pad(s.n)} ${esc(s.size)}（${ST[st]}）">${d>=1.4?pad(s.n):''}</i>`}).join('');
+    const usable=SHOTS[v].filter(s=>{const st=L(key(v,s.n)).st;return st==='ok'||st==='bak'});
+    const missing=SHOTS[v].filter(s=>{const st=L(key(v,s.n)).st;return st==='todo'||st==='ng'});
+    const rows=usable.map(s=>{const l=L(key(v,s.n));
+      return `<tr><td>${thumbBtn(v,s.n,'mini')}</td><td class="n">${pad(s.n)}</td><td class="mono">${fmtSec(s.t[0])}–${fmtSec(s.t[1])}</td><td class="mono">${camOf(v,s.n)}</td><td>${esc(s.size)}</td>
+      <td><span class="pill ${l.st}">${ST[l.st]}</span> ${l.ok?'第'+esc(l.ok)+'條':''}${l.bak?' 備用'+esc(l.bak):''}</td><td class="mono">${esc(l.file)}</td><td>${esc(l.note)}</td><td>${esc(s.link)}</td></tr>`}).join('');
+    const exs=[];SHOTS[v].forEach(s=>(s.ex||[]).forEach((t,i)=>{const l=L(key(v,s.n));exs.push(`<label><input type="checkbox" data-act="ex" data-k="${key(v,s.n)}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(s.n)}　${esc(t)}</span></label>`)}));
+    return `<section class="panel" style="display:flex;flex-direction:column;gap:12px">
+      <h3>${esc(META[v].name)}　<span class="muted small">可用 ${c.ok+c.bak}／${c.total} 鏡</span></h3>
+      <div><div class="strip" role="img" aria-label="成片時間軸">${strip}</div>
+        <div class="ticks"><span>0s</span><span>${fmtSec(total/4)}</span><span>${fmtSec(total/2)}</span><span>${fmtSec(total*3/4)}</span><span>${fmtSec(total)}s</span></div></div>
+      ${usable.length?`<div class="tablewrap"><table><thead><tr><th>圖</th><th>鏡</th><th>成片秒</th><th>相機</th><th>畫面</th><th>用哪條</th><th>檔案</th><th>備註</th><th>接鏡</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="empty">還沒有標成 OK 或備用的鏡頭。在場記頁標記後，這裡會列出剪輯可用的素材。</p>'}
+      ${missing.length?`<div><b class="small">還缺（未拍或 NG）</b><div class="chips" style="margin-top:6px">${missing.map(s=>chipHtml(v,s.n)).join('')}</div></div>`:''}
+      <div><b class="small">額外保險素材（拍了就打勾）</b><div class="ex" style="margin-top:6px">${exs.join('')||'<span class="muted small">沒有</span>'}</div></div>
+      <div><button type="button" class="btn ghost" data-act="copy" data-v="${v}">複製剪輯清單</button>
+        <textarea class="out" id="out-${v}" readonly hidden></textarea></div>
+    </section>`}).join('');
+  return `<p class="note">把場記頁標成 <b>OK</b> 或 <b>備用</b> 的鏡頭，整理成給剪輯師的素材清單，並標明是哪一台相機的檔。色條是成片 40 秒的時間軸，灰色是還沒有素材的位置。</p>${blocks}`;
+}
+
+let dirty=false;
+function render(){
+  renderTabs();
+  const app=$('#app');
+  app.innerHTML=tab==='plan'?viewPlan():tab==='edit'?viewEdit():tab==='live'?viewLive():viewLog(UI.lv);
+  dirty=false;
+}
+function scheduleRender(){
+  const a=document.activeElement;
+  if(a&&$('#app').contains(a)&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&a.type!=='checkbox'){dirty=true;renderTabs();return}
+  render();
+}
+function setTab(t){
+  if(t==='v1'||t==='v2'){UI.lv=t;t='log'}
+  if(!TABS.some(x=>x[0]===t))t='plan';
+  tab=t;UI.tab=t;saveUI();render();window.scrollTo(0,0);
+  try{history.replaceState(null,'','#'+t)}catch(e){}
+}
+function goShot(v,n){
+  UI.lv=v;saveUI();F[v]={su:'all',st:'all'};tab='log';render();
+  const el=document.getElementById('sh-'+key(v,n));
+  if(el)el.scrollIntoView({block:'start'});
+}
+
+/* ============ 場板 ============ */
+let SL=null;
+const runTake=(v,rn)=>Math.max(0,...runShots(rn).map(n=>L(key(v,n)).takes))+1;
+function openRun(v,ri){const rn=RUNS[v][ri];SL={v,ri,sel:Object.fromEntries(runShots(rn).map(n=>[n,true]))};renderSlate()}
+function renderSlate(){
+  const el=$('#slate');
+  if(!SL){el.hidden=true;el.innerHTML='';return}
+  const v=SL.v,rn=RUNS[v][SL.ri],b=rn.beat;
+  const pick=[1,2,3].flatMap(c=>rn.c[c].map(n=>({c,n})));
+  el.hidden=false;
+  el.innerHTML=`<div class="slate-card"><div class="clap"></div><div class="slate-body">
+    <div><span class="small muted">短影音</span><div style="font-weight:900;font-size:19px">${esc(META[v].name)}</div></div>
+    <div class="sgrid"><div><span>組輪 ROLL</span><b>${esc(rn.label)}</b></div><div><span>次 TAKE</span><b>${runTake(v,rn)}</b></div><div class="cam"><span>台數 CAMS</span><b>3</b></div></div>
+    <div class="small"><b>${esc(b.name)}</b>${rn.note?'　'+esc(rn.note):''}</div>
+    <div><div class="small muted" style="margin-bottom:6px">這一輪各台拍的鏡頭。點一下可以取消，只記有拍好的</div>
+      <div class="chips">${pick.map(({c,n})=>`<button type="button" class="chip sel" data-act="slsel" data-n="${n}" aria-pressed="${!!SL.sel[n]}">Cam${c} · ${pad(n)}</button>`).join('')||'<span class="muted small">這輪沒有指派鏡頭</span>'}</div></div>
+    <div class="sact">
+      <button type="button" class="a-ok" data-act="sl" data-r="ok">這條 OK</button>
+      <button type="button" class="a-bak" data-act="sl" data-r="bak">這條備用</button>
+      <button type="button" class="a-ng" data-act="sl" data-r="ng">這條 NG</button>
+      <button type="button" class="a-n" data-act="sl" data-r="n">只記一次</button>
+    </div>
+    <div class="snav"><button type="button" class="btn ghost" data-act="slnav" data-d="-1">◀ 上一輪</button><button type="button" class="btn ghost" data-act="slclose">關閉</button><button type="button" class="btn ghost" data-act="slnav" data-d="1">下一輪 ▶</button></div>
+  </div></div>`;
+}
+function recordRun(v,rn,ns,r){
+  const t=runTake(v,rn);
+  ns.forEach(n=>{
+    const k=key(v,n),l=L(k),p={takes:t};
+    if(r==='ok'){p.st='ok';p.ok=String(t)}
+    else if(r==='bak'){if(l.st!=='ok')p.st='bak';p.bak=String(t)}
+    else if(r==='ng'){if(l.st==='todo')p.st='ng'}
+    patch(k,p);
+  });
+}
+function slateRecord(r){
+  const rn=RUNS[SL.v][SL.ri];
+  recordRun(SL.v,rn,runShots(rn).filter(n=>SL.sel[n]),r);
+  renderSlate();renderTabs();
+}
+function slateNav(d){
+  const i=SL.ri+d;
+  if(i>=0&&i<RUNS[SL.v].length)openRun(SL.v,i);
+}
+
+/* ============ 機型名稱：全頁 Cam1/2/3 後面自動加機型 ============ */
+const camLabel=t=>t.replace(/Cam([123])(?!／)(（[^）]*）)?/g,(m,c)=>{const n=((S.meta.cams||{})[c]||'').replace(/[（）]/g,'');return 'Cam'+c+(n?'（'+n+'）':'')});
+let camObs=null;
+function applyCams(){
+  if(camObs)camObs.disconnect();
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;
+  while(n=w.nextNode()){const p=n.parentNode.nodeName;if(p==='SCRIPT'||p==='STYLE'||p==='TITLE')continue;const t=camLabel(n.nodeValue);if(t!==n.nodeValue)n.nodeValue=t}
+  if(camObs)camObs.observe(document.body,{childList:true,subtree:true});
+}
+camObs=new MutationObserver(()=>applyCams());
+
+/* ============ 事件 ============ */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act;
+  if(a==='tab')setTab(b.dataset.tab);
+  else if(a==='go')goShot(b.dataset.v,+b.dataset.n);
+  else if(a==='st'){
+    const k=b.dataset.k,l=L(k),p={st:b.dataset.v};
+    if(p.st==='ok'&&!l.ok&&l.takes>0)p.ok=String(l.takes);
+    patch(k,p);render();
+  }
+  else if(a==='tk'){const k=b.dataset.k;patch(k,{takes:Math.max(0,L(k).takes+ +b.dataset.d)});render()}
+  else if(a==='save'){
+    const k=b.dataset.k,l=L(k),d=new Date();
+    const e={id:Date.now()+Math.floor(Math.random()*1000),time:pad(d.getHours())+':'+pad(d.getMinutes()),res:ST[l.st],take:l.takes||0,file:l.file,note:l.note};
+    patch(k,{saves:[...(l.saves||[]),e],file:'',note:''});render();
+  }
+  else if(a==='sdel'){const k=b.dataset.k;patch(k,{saves:(L(k).saves||[]).filter(x=>String(x.id)!==b.dataset.id)});render()}
+  else if(a==='clearall'){
+    if(!CLR){CLR=true;render();setTimeout(()=>{if(CLR){CLR=false;render()}},4000);return}
+    CLR=false;Object.keys(S.logs).forEach(k=>{S.logs[k]=blank();persist(k)});
+    patchMeta({prep:{}});render();
+  }
+  else if(a==='slate'){const x=RUN_OF[b.dataset.v][+b.dataset.n];if(x&&x.length)openRun(b.dataset.v,x[0].run.ri)}
+  else if(a==='slaterun')openRun(b.dataset.v,+b.dataset.ri);
+  else if(a==='gorun'){UI.lv=b.dataset.v;UI.cur[UI.lv]=+b.dataset.ri;LSEL={};setTab('live')}
+  else if(a==='zoom'){ZM={v:b.dataset.v,n:+b.dataset.n};renderZoom()}
+  else if(a==='zclose'){ZM=null;renderZoom()}
+  else if(a==='znav'){const arr=SHOTS[ZM.v],i=arr.findIndex(x=>x.n===ZM.n)+ +b.dataset.d;if(i>=0&&i<arr.length){ZM.n=arr[i].n;renderZoom()}}
+  else if(a==='vsw'){UI.lv=b.dataset.v;saveUI();render()}
+  else if(a==='runnav'){const v=UI.lv,i=curRun(v)+ +b.dataset.d;if(i>=0&&i<RUNS[v].length){UI.cur[v]=i;saveUI();render();window.scrollTo(0,0)}}
+  else if(a==='role'){UI.role=b.dataset.id;saveUI();render()}
+  else if(a==='lrec'){const v=UI.lv,rn=RUNS[v][curRun(v)];recordRun(v,rn,runShots(rn).filter(isSel),b.dataset.r);render()}
+  else if(a==='slsel'){SL.sel[b.dataset.n]=!SL.sel[b.dataset.n];renderSlate()}
+  else if(a==='sl')slateRecord(b.dataset.r);
+  else if(a==='slnav')slateNav(+b.dataset.d);
+  else if(a==='slclose'){SL=null;renderSlate();render()}
+  else if(a==='fsu'){F[b.dataset.v].su=b.dataset.id;render()}
+  else if(a==='fwho'){F[b.dataset.v].who=b.dataset.id;render()}
+  else if(a==='fst'){F[b.dataset.v].st=b.dataset.id;render()}
+  else if(a==='copy'){
+    const v=b.dataset.v,ta=$('#out-'+v),text=exportText(v);
+    ta.value=text;ta.hidden=false;
+    const done=()=>{b.textContent='已複製'};
+    try{navigator.clipboard.writeText(text).then(done,()=>{ta.focus();ta.select()})}catch(err){ta.focus();ta.select()}
+  }
+});
+document.addEventListener('change',e=>{
+  const t=e.target,a=t.dataset&&t.dataset.act;
+  if(a==='ex'){const k=t.dataset.k,l=L(k),ex=Object.assign({},l.ex);if(t.checked)ex[t.dataset.i]=true;else delete ex[t.dataset.i];patch(k,{ex});}
+  else if(a==='lsel'){const k=selKey();LSEL[k]=Object.assign({},LSEL[k]);LSEL[k][t.dataset.n]=t.checked}
+  else if(t.id==='f-run'){UI.cur[UI.lv]=+t.value;saveUI();render()}
+  else if(a==='prep'){const p=Object.assign({},S.meta.prep);if(t.checked)p[t.dataset.id]=true;else delete p[t.dataset.id];patchMeta({prep:p})}
+  else if(t.id==='f-date'&&t.value){patchMeta({date:t.value});render()}
+  else if(t.id==='f-call'&&t.value){patchMeta({call:t.value});render()}
+  else if(t.id==='f-speed'){patchMeta({speed:+t.value});render()}
+});
+document.addEventListener('input',e=>{
+  const t=e.target;if(t.dataset&&t.dataset.cam){patchMeta({cams:Object.assign({1:'',2:'',3:''},S.meta.cams,{[t.dataset.cam]:t.value.trim()})});applyCams();return}
+ if(t.dataset&&t.dataset.f){patch(t.dataset.k,{[t.dataset.f]:t.value})}
+});
+document.addEventListener('focusout',()=>{if(dirty)setTimeout(()=>{const a=document.activeElement;if(!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))render()},60)});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ZM){ZM=null;renderZoom()}else if(SL){SL=null;renderSlate();render()}});
+$('#app').addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.d){d.open?openSet.add(d.dataset.d):openSet.delete(d.dataset.d)}},true);
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==tab)setTab(h)});
+
+/* ============ 同步（db） ============ */
+(async()=>{
+  try{
+    const c=window.claude;if(!c||!c.use){setSync('','只存在這支手機');return}
+    db=await c.use('db');
+    if(!db){setSync('','只存在這支手機');return}
+    setSync('load','同步中');
+    const wait=setTimeout(()=>setSync('err','連不上雲端，先存在此裝置'),10000);
+    db.collection('logs').onSnapshot(snap=>{
+      clearTimeout(wait);if(!snap.metadata.fromCache)setSync('ok','已同步');
+      let ch=false;
+      snap.docs.forEach(d=>{
+        if(busy(d.id))return;
+        const data=JSON.parse(JSON.stringify(d.data()||{}));
+        if(JSON.stringify(data)!==JSON.stringify(S.logs[d.id])){S.logs[d.id]=data;ch=true}
+      });
+      if(ch){saveLocal();scheduleRender()}
+    },()=>{clearTimeout(wait);setSync('err','同步中斷，已存在此裝置')});
+    db.doc('meta/plan').onSnapshot(d=>{
+      if(!d.exists||busy('meta'))return;
+      const m=JSON.parse(JSON.stringify(d.data()||{}));
+      if(JSON.stringify(Object.assign({},S.meta,m))!==JSON.stringify(S.meta)){S.meta=Object.assign(defMeta(),S.meta,m);saveLocal();scheduleRender()}
+    },()=>{});
+  }catch(err){setSync('','只存在這支手機')}
+})();
+
+/* ============ 啟動 ============ */
+setSync('','只存在這支手機');
+const h0=(location.hash||'').slice(1);
+if(h0==='v1'||h0==='v2'){UI.lv=h0;tab='log'}
+else if(TABS.some(x=>x[0]===h0))tab=h0;
+else tab=TABS.some(x=>x[0]===UI.tab)?UI.tab:'plan';
+render();
+applyCams();
+</script>
+
+</body></html>
