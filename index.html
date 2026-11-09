@@ -215,6 +215,8 @@ textarea.out{width:100%;min-height:140px;background:var(--bg);border:1px solid v
 .flowblk{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:10px}.flowblk h4{margin:0;font-size:15px}
 .frows{display:flex;flex-direction:column;gap:8px;margin-top:4px}.frow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}.frow .chip{flex:none}.ftxt{min-width:0;flex:1;font-size:14px}
 .flowcol{display:flex;flex-direction:column;gap:4px}.flowcol .chips{display:flex;flex-wrap:wrap;gap:6px}
+.undo{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700}
+.sact .a-u{background:#fff;color:var(--ng);border:2px solid var(--ng)}
 </style>
 
 <body>
@@ -635,7 +637,7 @@ function logCard(v,rn){
   const cont=ns.map(n=>{const s=SH(v,n);return `<li><b>鏡${pad(s.n)}</b>${s.comb?`　<span class="tag warn">梳子：${esc(s.comb)}</span>`:''}　${esc(s.link)}</li>`}).join('');
   const exs=ns.flatMap(n=>(SH(v,n).ex||[]).map((txt,i)=>({n,i,txt}))).map(({n,i,txt})=>{const k=key(v,n),l=L(k);return `<label><input type="checkbox" data-act="ex" data-k="${k}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(n)}　${esc(txt)}</span></label>`}).join('');
   const rows=ns.map(n=>{const k=key(v,n),l=L(k);
-    return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span class="pill ${l.st}" style="justify-self:end">${ST[l.st]}</span>
+    return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span style="justify-self:end;display:flex;gap:6px;align-items:center"><span class="pill ${l.st}">${ST[l.st]}</span>${l.st!=='todo'?`<button type="button" class="undo" data-act="undo1" data-k="${k}">取消</button>`:''}</span>
       <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔名（例 C0123）" aria-label="鏡${pad(n)} 檔名"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
   return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
     <ol class="steps"><li>把場板對著鏡頭，唸「${esc(rn.label)}、Take ${t}」。</li><li>三台一起錄，演員表演。</li><li>導演喊卡後，按下面的 OK、備用或 NG。</li><li>記每台的檔案號。</li></ol>
@@ -644,7 +646,7 @@ function logCard(v,rn){
     <div><b class="small">連戲重點（前後要對得上）</b><ul class="steps plain">${cont}</ul></div>
     ${exs?`<div><b class="small">要多拍的保險版（拍了就打勾）</b><div class="ex" style="margin-top:4px">${exs}</div></div>`:''}
     <div><b class="small">記錄（勾選的鏡頭才會被記）</b>${rows}</div>
-    <div class="sact"><button type="button" class="a-ok" data-act="lrec" data-r="ok">這條 OK</button><button type="button" class="a-bak" data-act="lrec" data-r="bak">這條備用</button><button type="button" class="a-ng" data-act="lrec" data-r="ng">這條 NG</button><button type="button" class="a-n" data-act="lrec" data-r="n">只記一次</button></div>
+    <div class="sact"><button type="button" class="a-ok" data-act="lrec" data-r="ok">這條 OK</button><button type="button" class="a-bak" data-act="lrec" data-r="bak">這條備用</button><button type="button" class="a-ng" data-act="lrec" data-r="ng">這條 NG</button><button type="button" class="a-n" data-act="lrec" data-r="n">只記一次</button><button type="button" class="a-u" data-act="lrec" data-r="undo" style="grid-column:1/-1">取消勾選的鏡頭（改回未拍）</button></div>
   </section>`;
 }
 function storyHtml(v,rn){
@@ -879,6 +881,7 @@ function recordRun(v,rn,ns,r){
     if(r==='ok'){p.st='ok';p.ok=String(t)}
     else if(r==='bak'){p.st='bak';p.bak=String(t)}
     else if(r==='ng'){p.st='ng'}
+    else if(r==='undo'){p.st='todo';p.ok='';p.bak=''}
     patch(k,p);
   });
 }
@@ -909,8 +912,10 @@ document.addEventListener('click',e=>{
   const a=b.dataset.act;
   if(a==='tab')setTab(b.dataset.tab);
   else if(a==='go')goShot(b.dataset.v,+b.dataset.n);
+  else if(a==='undo1'){patch(b.dataset.k,{st:'todo',ok:'',bak:''});render()}
   else if(a==='st'){
     const k=b.dataset.k,l=L(k),p={st:b.dataset.v};
+    if(l.st===p.st&&p.st!=='todo'){patch(k,{st:'todo',ok:'',bak:''});render();return}
     if(p.st==='ok'&&!l.ok&&l.takes>0)p.ok=String(l.takes);
     patch(k,p);render();
   }
