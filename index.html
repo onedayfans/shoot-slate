@@ -82,6 +82,26 @@ h3{font-size:15px;margin:0;font-weight:700}
 .sb.cur{border-color:var(--acc);box-shadow:0 0 0 2px var(--ink)}
 .sb-now{font-size:13px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-file{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;margin-top:4px}.sb-file label{font-size:13px;font-weight:700}.sb-file input{min-width:0;border:2px solid var(--ink);border-radius:8px;padding:6px 8px;font-size:16px;background:#fff;font-family:var(--mono)}.sb-file .btn{padding:6px 12px}
+
+.btn:active,.sb:active,.cue-bar button:active{transform:scale(.93);filter:brightness(.85)}
+.btn,.sb{transition:transform .08s,filter .08s}
+.sb{width:40px}
+.sb b{line-height:30px;font-size:15px;background:var(--todo)}
+.sb.fc-1 b,.sb.fc-2 b{background:#9fdcb8;color:#0b3d22}
+.sb.fc-3 b{background:var(--ok);color:#fff}
+.sb.ng b{background:var(--ng);color:#fff}
+.camfiles{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
+.cf-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+.cf{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cf span{font-size:12px;font-weight:700;color:var(--muted)}
+.cf input{min-width:0;width:100%;border:2px solid var(--line);border-radius:8px;padding:8px 6px;font-size:16px;background:#fff;font-family:var(--mono)}
+.cf input[readonly]{background:#e3f6ea;border-color:#9fdcb8;color:#0b3d22;font-weight:700}
+.cf-btns{display:flex;gap:6px}
+.cf-btns .btn{padding:8px 14px;font-size:14px}
+.cf-btns .cfsave.part{background:#9fdcb8;border-color:#9fdcb8;color:#0b3d22}
+.cf-btns .cfsave.full{background:var(--ok);border-color:var(--ok);color:#fff}
+.camfiles.just{animation:pop .5s}
+@keyframes pop{0%{box-shadow:0 0 0 0 rgba(26,138,80,.7)}100%{box-shadow:0 0 0 14px rgba(26,138,80,0)}}
 .task.flash{outline:4px solid var(--acc);outline-offset:2px;border-radius:8px}
 .note{background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px}
 
@@ -490,7 +510,7 @@ const defMeta=()=>({date:'2026-11-10',call:'12:00',speed:1,prep:{},cams:{1:'',2:
 let S={logs:{},meta:defMeta()};
 try{const j=JSON.parse(localStorage.getItem(LS)||'null');if(j){S.logs=j.logs||{};S.meta=Object.assign(defMeta(),j.meta||{});if(S.meta.sched!=='real1'){S.meta.call='12:00';S.meta.sched='real1'}}}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}};
-const blank=()=>({takes:0,st:'todo',ok:'',bak:'',file:'',note:'',ex:{},saves:[]});
+const blank=()=>({takes:0,st:'todo',ok:'',bak:'',file:'',note:'',ex:{},saves:[],f1:'',f2:'',f3:''});
 const L=k=>Object.assign(blank(),S.logs[k]||{});
 let db=null;const timers={},pend={},chain={},failed=new Set();
 const busy=k=>!!timers[k]||pend[k]>0;
@@ -637,6 +657,17 @@ function renderZoom(){
     <div class="cap"><b>鏡${pad(ZM.n)}　${esc(s.size)}${s.mm?'　'+s.mm+'mm':''}</b><br><span style="opacity:.8">圖上的「A機、D機」是分鏡原本的機位代號，現場請照 Cam1／2／3</span></div>
     <div class="snav" style="width:100%;max-width:420px"><button type="button" class="btn ghost" ${wb} data-act="znav" data-d="-1">◀ 上一鏡</button><button type="button" class="btn ghost" ${wb} data-act="zclose">關閉</button><button type="button" class="btn ghost" ${wb} data-act="znav" data-d="1">下一鏡 ▶</button></div>`;
 }
+const fcs=l=>[l.f1,l.f2,l.f3];
+const fcount=l=>fcs(l).filter(x=>x&&String(x).trim()).length;
+const fileText=l=>fcs(l).map((x,i)=>x&&String(x).trim()?`CAM${i+1} ${String(x).trim()}`:'').filter(Boolean).join('、');
+let EDITING=new Set(),JUST=null;
+function camFiles(k){
+  const l=L(k),n=fcount(l),lock=n>0&&!EDITING.has(k);
+  const cls=n===3?'full':n>0?'part':'';
+  return `<div class="camfiles${JUST===k?' just':''}" data-k="${k}"><div class="cf-row">${[1,2,3].map(c=>`<label class="cf"><span>CAM${c}</span><input data-cf="${c}" value="${esc(l['f'+c])}" ${lock?'readonly':''} placeholder="檔號" autocomplete="off" autocapitalize="characters"></label>`).join('')}</div>
+  <div class="cf-btns"><button type="button" class="btn cfsave ${cls}" data-act="cfsave" data-k="${k}">${lock?'已儲存 '+n+'/3':'儲存'}</button><button type="button" class="btn ghost" data-act="cfedit" data-k="${k}" ${n?'':'disabled'}>更改</button><button type="button" class="btn ghost" data-act="cfclear" data-k="${k}" ${n?'':'disabled'}>清除</button></div></div>`;
+}
+function cfFlash(k){JUST=k;render();setTimeout(()=>{JUST=null;document.querySelectorAll('.camfiles.just').forEach(e=>e.classList.remove('just'))},700)}
 function taskHtml(v,n){
   const s=SH(v,n),l=L(key(v,n)),d=dur(s),help=sizeHelp(s.size);
   return `<div class="task" id="lt-${n}"><div class="trow">${thumbBtn(v,n)}
@@ -645,7 +676,7 @@ function taskHtml(v,n){
       <span class="pill ${l.st}">${ST[l.st]}</span></div>
     ${help?`<p class="hint">${esc(help)}</p>`:''}
     ${d<2?`<p class="warnline">成片只用 ${fmtSec(d)} 秒，但現場請把整段表演拍完整，剪輯再取秒數。</p>`:''}</div></div>
-    <dl class="info"><dt>畫面怎麼放</dt><dd>${esc(s.comp)}</dd><dt>演員做什麼</dt><dd>${esc(s.act)}</dd>${s.line&&s.line!=='無台詞'?`<dt>台詞</dt><dd>${esc(s.line)}</dd>`:''}</dl></div>`;
+    <dl class="info"><dt>畫面怎麼放</dt><dd>${esc(s.comp)}</dd><dt>演員做什麼</dt><dd>${esc(s.act)}</dd>${s.line&&s.line!=='無台詞'?`<dt>台詞</dt><dd>${esc(s.line)}</dd>`:''}</dl>${camFiles(key(v,n))}</div>`;
 }
 function camCard(v,rn,c){
   const a=rn.c[c];
@@ -673,7 +704,7 @@ function logCard(v,rn){
   const exs=ns.flatMap(n=>(SH(v,n).ex||[]).map((txt,i)=>({n,i,txt}))).map(({n,i,txt})=>{const k=key(v,n),l=L(k);return `<label><input type="checkbox" data-act="ex" data-k="${k}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(n)}　${esc(txt)}</span></label>`}).join('');
   const rows=ns.map(n=>{const k=key(v,n),l=L(k);
     return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span style="justify-self:end;display:flex;gap:6px;align-items:center"><span class="pill ${l.st}">${ST[l.st]}</span>${l.st!=='todo'?`<button type="button" class="undo" data-act="undo1" data-k="${k}">取消</button>`:''}</span>
-      <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔名（例 C0123）" aria-label="鏡${pad(n)} 檔名"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
+      <input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
   return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
     <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><span class="seg takeadj" role="group" aria-label="調整 Take"><button type="button" data-act="takeadj" data-d="-1" aria-label="Take 減 1">−</button><button type="button" data-act="takeadj" data-d="1" aria-label="Take 加 1">+</button><button type="button" data-act="takeadj" data-d="reset">重設 1</button></span><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
     ${lines?`<div><b class="small">台詞</b><ul class="steps plain">${lines}</ul></div>`:''}
@@ -697,9 +728,8 @@ function focusShot(v){
 function shotBar(v,rn){
   const ns=new Set(runShots(rn)),cur=focusShot(v),cs=SH(v,cur);
   const btns=SHOTS[v].map(x=>{const st=L(key(v,x.n)).st;
-    return `<button type="button" class="sb st-${st} w-${x.who}${ns.has(x.n)?' inrun':''}${x.n===cur?' cur':''}" data-act="sbgo" data-n="${x.n}" aria-label="鏡${x.n} ${WHO_L[x.who]} ${ST[st]}"><b>${pad(x.n)}</b><u>${WLAB[x.who]}</u></button>`}).join('');
-  return `<div class="shotbar"><div class="sb-row" id="sb-row">${btns}</div><div class="sb-now"><b>現在：鏡 ${pad(cur)}</b> ${esc(cs.size)}・${WLAB[cs.who]}　${esc(cs.act)}</div>
-    <div class="sb-file"><label for="sb-file-in">場記・檔案編號</label><input id="sb-file-in" data-f="file" data-k="${key(v,cur)}" value="${esc(L(key(v,cur)).file)}" placeholder="鏡${pad(cur)} 例 C0123" autocomplete="off" autocapitalize="characters"><button type="button" class="btn ghost" data-act="sbclear" data-k="${key(v,cur)}">清除</button></div></div>`;
+    return `<button type="button" class="sb ${st==='ng'?'ng':''} fc-${fcount(L(key(v,x.n)))} w-${x.who}${ns.has(x.n)?' inrun':''}${x.n===cur?' cur':''}" data-act="sbgo" data-n="${x.n}" aria-label="鏡${x.n} ${WHO_L[x.who]} 檔案${fcount(L(key(v,x.n)))}/3"><b>${pad(x.n)}</b><u>${WLAB[x.who]}</u></button>`}).join('');
+  return `<div class="shotbar"><div class="sb-row" id="sb-row">${btns}</div><div class="sb-now"><b>現在：鏡 ${pad(cur)}</b> ${esc(cs.size)}・${WLAB[cs.who]}　${esc(cs.act)}</div></div>`;
 }
 let sbLast=null,sbX=0;
 function sbScroll(){const r=document.getElementById('sb-row');if(!r)return;const c=r.querySelector('.cur'),k=c&&c.dataset.n;if(k===sbLast)r.scrollLeft=sbX;else if(c)r.scrollLeft=c.offsetLeft-r.clientWidth/2+17;sbLast=k;r.onscroll=()=>{sbX=r.scrollLeft}}
@@ -822,7 +852,6 @@ function cardHtml(v,s){
 
   </div>
   <div class="fields">
-    <label class="wide">檔名（這個鏡頭拍的檔案）<input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="例 C0123（${camOf(v,s.n)}）"></label>
     <label class="wide">備註（可不填）<input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="例 口白漏字、動作好"></label>
   </div>
   ${saveBlock(k)}
@@ -850,7 +879,7 @@ function exportText(v){
     const l=L(key(v,s.n));
     const head=`鏡${pad(s.n)}｜${fmtSec(s.t[0])}–${fmtSec(s.t[1])}s｜${camOf(v,s.n)} ${s.size}${s.mm?' '+s.mm+'mm':''}`;
     if(l.st==='ok'||l.st==='bak'){
-      out.push(head+`｜${ST[l.st]}${l.ok?' 第'+l.ok+'條':''}${l.bak?'／備用第'+l.bak+'條':''}${l.file?'｜檔案 '+l.file:''}${l.note?'｜'+l.note:''}`);
+      out.push(head+`｜${ST[l.st]}${l.ok?' 第'+l.ok+'條':''}${l.bak?'／備用第'+l.bak+'條':''}${fileText(l)?'｜檔案 '+fileText(l):l.file?'｜檔案 '+l.file:''}${l.note?'｜'+l.note:''}`);
       (l.saves||[]).forEach(x=>out.push(`　└ ${x.time} ${x.res}${x.take?' 第'+x.take+'次':''}${x.file?'｜檔案 '+x.file:''}${x.note?'｜'+x.note:''}`));
     }else miss.push(`鏡${pad(s.n)} ${s.size}（${ST[l.st]}）`);
   });
@@ -861,11 +890,11 @@ function viewEdit(){
   const blocks=['v1','v2'].map(v=>{
     const c=counts(v);const total=SHOTS[v][SHOTS[v].length-1].t[1];
     const strip=SHOTS[v].map(s=>{const st=L(key(v,s.n)).st,d=dur(s);return `<i class="st-${st}" style="flex:${d} 1 0" title="鏡${pad(s.n)} ${esc(s.size)}（${ST[st]}）">${d>=1.4?pad(s.n):''}</i>`}).join('');
-    const usable=SHOTS[v].filter(s=>{const st=L(key(v,s.n)).st;return st==='ok'||st==='bak'});
+    const usable=SHOTS[v].filter(s=>{const l=L(key(v,s.n));return l.st==='ok'||l.st==='bak'||fcount(l)>0});
     const missing=SHOTS[v].filter(s=>{const st=L(key(v,s.n)).st;return st==='todo'||st==='ng'});
     const rows=usable.map(s=>{const l=L(key(v,s.n));
       return `<tr><td>${thumbBtn(v,s.n,'mini')}</td><td class="n">${pad(s.n)}</td><td class="mono">${fmtSec(s.t[0])}–${fmtSec(s.t[1])}</td><td class="mono">${camOf(v,s.n)}</td><td>${esc(s.size)}</td>
-      <td><span class="pill ${l.st}">${ST[l.st]}</span> ${l.ok?'第'+esc(l.ok)+'條':''}${l.bak?' 備用'+esc(l.bak):''}</td><td class="mono">${esc(l.file)}</td><td>${esc(l.note)}</td><td>${esc(s.link)}</td></tr>`}).join('');
+      <td><span class="pill ${l.st}">${ST[l.st]}</span> ${l.ok?'第'+esc(l.ok)+'條':''}${l.bak?' 備用'+esc(l.bak):''}</td><td class="mono">${[1,2,3].map(c=>l['f'+c]?`CAM${c} ${esc(l['f'+c])}`:'').filter(Boolean).join('<br>')||esc(l.file)}</td><td>${esc(l.note)}</td><td>${esc(s.link)}</td></tr>`}).join('');
     const exs=[];SHOTS[v].forEach(s=>(s.ex||[]).forEach((t,i)=>{const l=L(key(v,s.n));exs.push(`<label><input type="checkbox" data-act="ex" data-k="${key(v,s.n)}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(s.n)}　${esc(t)}</span></label>`)}));
     return `<section class="panel" style="display:flex;flex-direction:column;gap:12px">
       <h3>${esc(META[v].name)}　<span class="muted small">可用 ${c.ok+c.bak}／${c.total} 鏡</span></h3>
@@ -1007,7 +1036,10 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act;
   if(a==='tab')setTab(b.dataset.tab);
-  else if(a==='sbclear'){patch(b.dataset.k,{file:''});render()}
+  else if(a==='cfsave'){const k=b.dataset.k,box=b.closest('.camfiles'),o={};
+    if(EDITING.has(k)||!fcount(L(k))){box.querySelectorAll('input[data-cf]').forEach(i=>{o['f'+i.dataset.cf]=i.value.trim()});patch(k,o);EDITING.delete(k);cfFlash(k)}}
+  else if(a==='cfedit'){EDITING.add(b.dataset.k);render();const i=document.querySelector(`.camfiles[data-k="${b.dataset.k}"] input`);if(i)i.focus()}
+  else if(a==='cfclear'){const k=b.dataset.k;patch(k,{f1:'',f2:'',f3:''});EDITING.delete(k);cfFlash(k)}
   else if(a==='sbgo')sbGo(+b.dataset.n);
   else if(a==='cardv'){CARD.v=b.dataset.v;render()}
   else if(a==='cuenav')cueGo(+b.dataset.d);
@@ -1026,7 +1058,7 @@ document.addEventListener('click',e=>{
   else if(a==='tk'){const k=b.dataset.k;patch(k,{takes:Math.max(0,L(k).takes+ +b.dataset.d)});render()}
   else if(a==='save'){
     const k=b.dataset.k,l=L(k),d=new Date();
-    const e={id:Date.now()+Math.floor(Math.random()*1000),time:pad(d.getHours())+':'+pad(d.getMinutes()),res:ST[l.st],take:l.takes||0,file:l.file,note:l.note};
+    const e={id:Date.now()+Math.floor(Math.random()*1000),time:pad(d.getHours())+':'+pad(d.getMinutes()),res:ST[l.st],take:l.takes||0,file:fileText(l),note:l.note};
     patch(k,{saves:[...(l.saves||[]),e],file:'',note:''});render();
   }
   else if(a==='sdel'){const k=b.dataset.k;patch(k,{saves:(L(k).saves||[]).filter(x=>String(x.id)!==b.dataset.id)});render()}
