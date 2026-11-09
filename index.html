@@ -168,6 +168,7 @@ textarea.out{width:100%;min-height:140px;background:var(--bg);border:1px solid v
 .runbar{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:8px;align-items:center}
 .runbar select{min-width:0;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--ink)}
 .runbar .btn{padding:9px 6px}
+.runbar.top2{grid-template-columns:1fr 1fr}.runbar.top2 select{grid-column:1/-1}.runbar.top2 .btn{padding:12px 6px;font-size:15px}
 .btn:disabled{opacity:.35;cursor:default}
 .runhead{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
 .rl{font-family:var(--mono);font-weight:700;font-size:30px;background:var(--acc);color:var(--on-acc);border:2px solid var(--ink);border-radius:8px;padding:4px 12px;flex:none}
@@ -662,9 +663,9 @@ function viewLive(){
   const nx=camRole1?nextFor(v,ri,camRole1):null;
   const summary=role==='log'?`<section class="camcard"><h3>這一輪各台拍什麼</h3><ul class="steps plain">${[1,2,3].map(c=>`<li><b>Cam${c}</b>　${rn.c[c].length?rn.c[c].map(n=>`鏡${pad(n)} ${esc(SH(v,n).size)}${SH(v,n).mm?' '+SH(v,n).mm+'mm':''}`).join('、'):(c===1?'保險全景':'不拍')}</li>`).join('')}</ul></section>`:'';
   return `${vsw()}
-  <div class="runbar"><button type="button" class="btn ghost" data-act="runnav" data-d="-1" ${ri===0?'disabled':''} aria-label="上一輪">◀</button>
-    <select id="f-run" aria-label="選擇這一輪">${opts}</select>
-    <button type="button" class="btn ghost" data-act="runnav" data-d="1" ${ri===RUNS[v].length-1?'disabled':''} aria-label="下一輪">▶</button></div>
+  <div class="runbar top2"><select id="f-run" aria-label="選擇這一輪">${opts}</select>
+    <button type="button" class="btn ghost" data-act="runnav" data-d="-1" ${ri===0?'disabled':''}>◀ 上一輪</button>
+    <button type="button" class="btn acc" data-act="runnav" data-d="1" ${ri===RUNS[v].length-1?'disabled':''}>下一輪 ▶</button></div>
   <div class="filters" role="group" aria-label="我是">${ROLES.map(([id,n])=>`<button type="button" class="fchip" data-act="role" data-id="${id}" aria-pressed="${role===id}">${n}</button>`).join('')}</div>
   <section class="runhead"><div class="rl">${esc(rn.label)}</div><div style="min-width:0"><h2 style="margin:0">${esc(b.name)}</h2><div class="small muted">${esc(b.desc)}</div></div><span class="pill ${done?'ok':''}" style="margin-left:auto">${done?'已拍':'未拍完'}</span></section>
   ${(()=>{const ns=runShots(rn);const aa=ns.filter(n=>SH(v,n).who==='a');return aa.length?`<p class="note"><b>阿伯單人鏡頭：</b>鏡${aa.map(pad).join('、')}。源寶在拍平面時，可以先只拍阿伯的這幾個。</p>`:''})()}
