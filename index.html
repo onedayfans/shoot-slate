@@ -102,7 +102,7 @@ h3{font-size:15px;margin:0;font-weight:700}
 .cf-btns .cfsave.full{background:var(--ok);border-color:var(--ok);color:#fff}
 .camfiles.just{animation:pop .5s}
 @keyframes pop{0%{box-shadow:0 0 0 0 rgba(26,138,80,.7)}100%{box-shadow:0 0 0 14px rgba(26,138,80,0)}}
-.shotnav{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 6px}.shotnav .sb{width:38px}
+.shotnav{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 2px}.shotnav .sb{width:31px;border-width:1.5px;border-radius:6px}.shotnav .sb b{font-size:12px;line-height:22px}.shotnav .sb u{font-size:9px;line-height:12px;border-top-width:2px}
 .task.flash{outline:4px solid var(--acc);outline-offset:2px;border-radius:8px}
 .note{background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px}
 
@@ -676,8 +676,7 @@ function taskHtml(v,n){
       <div><b>${esc(s.size)}</b> ${whoTag(s)}<div class="small muted">${s.mm?'鏡頭 '+s.mm+'mm · ':''}成片用 ${fmtSec(d)} 秒</div></div>
       <span class="pill ${l.st}">${ST[l.st]}</span></div>
     ${help?`<p class="hint">${esc(help)}</p>`:''}
-    ${d<2?`<p class="warnline">成片只用 ${fmtSec(d)} 秒，但現場請把整段表演拍完整，剪輯再取秒數。</p>`:''}</div></div>
-    ${shotNav(v,n)}
+    ${d<2?`<p class="warnline">成片只用 ${fmtSec(d)} 秒，但現場請把整段表演拍完整，剪輯再取秒數。</p>`:''}${shotNav(v,n)}</div></div>
     <dl class="info"><dt>畫面怎麼放</dt><dd>${esc(s.comp)}</dd><dt>演員做什麼</dt><dd>${esc(s.act)}</dd>${s.line&&s.line!=='無台詞'?`<dt>台詞</dt><dd>${esc(s.line)}</dd>`:''}</dl>${camFiles(key(v,n))}</div>`;
 }
 function camCard(v,rn,c){
