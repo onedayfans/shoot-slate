@@ -624,10 +624,10 @@ function nextFor(v,ri,c){
 const CAM_STEPS='<ol class="steps"><li>聽到場板後，三台一起按錄影。</li><li>演員開始前多錄 2–3 秒，動作結束後再多錄 3 秒。</li><li>演完先別停，等導演喊卡。</li><li>NG 的檔案不要刪，把這一輪的檔案號告訴場記。</li></ol>';
 
 let CLR=false;
-function saveBlock(k){
+function saveBlock(k,short){
   const l=L(k),sv=l.saves||[];
   const list=sv.map(x=>`<li><span class="sv-t mono">${esc(x.time)}</span><span class="sv-b"><b>${x.res&&x.res!=='未拍'?esc(x.res):'已存'}</b>${x.file?'　檔案 '+esc(x.file):''}${x.note?'　'+esc(x.note):''}</span><button type="button" class="sv-x" data-act="sdel" data-k="${k}" data-id="${x.id}" aria-label="刪除這筆">刪除</button></li>`).join('');
-  return `<div class="saves"><button type="button" class="btn acc" data-act="save" data-k="${k}">儲存這一條</button>${sv.length?`<ul class="svlist">${list}</ul>`:'<span class="small muted">拍完：先按上面的 OK／備用／NG，打檔名，再按「儲存這一條」。存好的會列在下面，可單筆刪除。</span>'}</div>`;
+  return `<div class="saves"><button type="button" class="btn acc" data-act="save" data-k="${k}">儲存這一條</button>${sv.length?`<ul class="svlist">${list}</ul>`:short?'':'<span class="small muted">拍完：先按上面的 OK／備用／NG，打檔名，再按「儲存這一條」。存好的會列在下面，可單筆刪除。</span>'}</div>`;
 }
 function logCard(v,rn){
   const ns=runShots(rn),t=runTake(v,rn);
@@ -635,11 +635,11 @@ function logCard(v,rn){
   const cont=ns.map(n=>{const s=SH(v,n);return `<li><b>鏡${pad(s.n)}</b>${s.comb?`　<span class="tag warn">梳子：${esc(s.comb)}</span>`:''}　${esc(s.link)}</li>`}).join('');
   const exs=ns.flatMap(n=>(SH(v,n).ex||[]).map((txt,i)=>({n,i,txt}))).map(({n,i,txt})=>{const k=key(v,n),l=L(k);return `<label><input type="checkbox" data-act="ex" data-k="${k}" data-i="${i}" ${l.ex&&l.ex[i]?'checked':''}> <span>鏡${pad(n)}　${esc(txt)}</span></label>`}).join('');
   const rows=ns.map(n=>{const k=key(v,n),l=L(k);
-    return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span class="pill ${l.st}" style="justify-self:end">${ST[l.st]}${l.takes?'　'+l.takes+'次':''}</span>
-      <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔案號" aria-label="鏡${pad(n)} 檔案號"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k)}</div>`}).join('');
+    return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span class="pill ${l.st}" style="justify-self:end">${ST[l.st]}</span>
+      <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔名（例 C0123）" aria-label="鏡${pad(n)} 檔名"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
   return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
     <ol class="steps"><li>把場板對著鏡頭，唸「${esc(rn.label)}、Take ${t}」。</li><li>三台一起錄，演員表演。</li><li>導演喊卡後，按下面的 OK、備用或 NG。</li><li>記每台的檔案號。</li></ol>
-    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
+    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><span class="small muted" style="flex-basis:100%">Take 是這一輪演第幾次，場板上要唸。每按一次下面的「這條…」就算演過一次，自動加 1。</span><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
     ${lines?`<div><b class="small">台詞</b><ul class="steps plain">${lines}</ul></div>`:''}
     <div><b class="small">連戲重點（前後要對得上）</b><ul class="steps plain">${cont}</ul></div>
     ${exs?`<div><b class="small">要多拍的保險版（拍了就打勾）</b><div class="ex" style="margin-top:4px">${exs}</div></div>`:''}
@@ -877,8 +877,8 @@ function recordRun(v,rn,ns,r){
   ns.forEach(n=>{
     const k=key(v,n),l=L(k),p={takes:t};
     if(r==='ok'){p.st='ok';p.ok=String(t)}
-    else if(r==='bak'){if(l.st!=='ok')p.st='bak';p.bak=String(t)}
-    else if(r==='ng'){if(l.st==='todo')p.st='ng'}
+    else if(r==='bak'){p.st='bak';p.bak=String(t)}
+    else if(r==='ng'){p.st='ng'}
     patch(k,p);
   });
 }
