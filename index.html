@@ -640,7 +640,7 @@ function logCard(v,rn){
     return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span style="justify-self:end;display:flex;gap:6px;align-items:center"><span class="pill ${l.st}">${ST[l.st]}</span>${l.st!=='todo'?`<button type="button" class="undo" data-act="undo1" data-k="${k}">取消</button>`:''}</span>
       <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔名（例 C0123）" aria-label="鏡${pad(n)} 檔名"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
   return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
-    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
+    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><span class="seg takeadj" role="group" aria-label="調整 Take"><button type="button" data-act="takeadj" data-d="-1" aria-label="Take 減 1">−</button><button type="button" data-act="takeadj" data-d="1" aria-label="Take 加 1">+</button><button type="button" data-act="takeadj" data-d="reset">重設 1</button></span><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
     ${lines?`<div><b class="small">台詞</b><ul class="steps plain">${lines}</ul></div>`:''}
     <div><b class="small">連戲重點（前後要對得上）</b><ul class="steps plain">${cont}</ul></div>
     ${exs?`<div><b class="small">要多拍的保險版（拍了就打勾）</b><div class="ex" style="margin-top:4px">${exs}</div></div>`:''}
@@ -874,7 +874,7 @@ function renderSlate(){
 function recordRun(v,rn,ns,r){
   const t=runTake(v,rn);
   ns.forEach(n=>{
-    const k=key(v,n),l=L(k),p={takes:t};
+    const k=key(v,n),l=L(k),p=r==='undo'?{}:{takes:t};
     if(r==='ok'){p.st='ok';p.ok=String(t)}
     else if(r==='bak'){p.st='bak';p.bak=String(t)}
     else if(r==='ng'){p.st='ng'}
@@ -909,6 +909,10 @@ document.addEventListener('click',e=>{
   const a=b.dataset.act;
   if(a==='tab')setTab(b.dataset.tab);
   else if(a==='go')goShot(b.dataset.v,+b.dataset.n);
+  else if(a==='takeadj'){
+    const v=UI.lv,rn=RUNS[v][curRun(v)],t=runTake(v,rn),nt=b.dataset.d==='reset'?1:Math.max(1,t+ +b.dataset.d);
+    runShots(rn).forEach(n=>patch(key(v,n),{takes:nt-1}));render();
+  }
   else if(a==='undo1'){patch(b.dataset.k,{st:'todo',ok:'',bak:''});render()}
   else if(a==='st'){
     const k=b.dataset.k,l=L(k),p={st:b.dataset.v};
