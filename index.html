@@ -213,6 +213,7 @@ textarea.out{width:100%;min-height:140px;background:var(--bg);border:1px solid v
 .btn.danger{background:var(--ng);border-color:var(--ng);color:var(--on-solid)}
 .tag.who-a{background:var(--bak-soft);color:var(--bak)}.tag.who-y{background:var(--ok-soft);color:var(--ok)}.tag.who-s,.tag.who-g{background:var(--surface2);color:var(--muted)}
 .flowblk{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:10px}.flowblk h4{margin:0;font-size:15px}
+.frows{display:flex;flex-direction:column;gap:8px;margin-top:4px}.frow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}.frow .chip{flex:none}.ftxt{min-width:0;flex:1;font-size:14px}
 .flowcol{display:flex;flex-direction:column;gap:4px}.flowcol .chips{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 
@@ -454,7 +455,7 @@ try{const j=JSON.parse(localStorage.getItem(LS)||'null');if(j){S.logs=j.logs||{}
 const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}};
 const blank=()=>({takes:0,st:'todo',ok:'',bak:'',file:'',note:'',ex:{},saves:[]});
 const L=k=>Object.assign(blank(),S.logs[k]||{});
-let db=null;const timers={},pend={},chain={};
+let db=null;const timers={},pend={},chain={},failed=new Set();
 const busy=k=>!!timers[k]||pend[k]>0;
 function setSync(c,t){const e=$('#sync');e.className='sync '+c;e.textContent=t}
 function persist(k){
@@ -465,7 +466,7 @@ function persist(k){
     delete timers[k];pend[k]=(pend[k]||0)+1;
     const body=JSON.parse(JSON.stringify(k==='meta'?S.meta:S.logs[k]));
     const ref=k==='meta'?db.doc('meta/plan'):db.doc('logs/'+k);
-    chain[k]=(chain[k]||Promise.resolve()).then(()=>ref.set(body)).then(()=>setSync('ok','已同步'),()=>setSync('err','同步失敗，已存在此裝置')).then(()=>{pend[k]--});
+    chain[k]=(chain[k]||Promise.resolve()).then(()=>ref.set(body)).then(()=>{failed.delete(k);setSync('ok','已同步')},()=>{failed.add(k);setSync('err','同步失敗，已存在此裝置，會自動重試')}).then(()=>{pend[k]--});
   },500);
 }
 function patch(k,o){S.logs[k]=Object.assign(L(k),o);persist(k)}
@@ -589,7 +590,7 @@ const vsw=()=>`<div class="seg vsw" role="group" aria-label="影片">${['v1','v2
 
 let ZM=null;
 const imgSrc=(v,n)=>`img/${v}_${pad(n)}.jpg`;
-const thumbBtn=()=>''; /* 公開版不放分鏡圖 */
+const thumbBtn=(v,n,cls)=>!window.SLATE_IMG?'':`<button type="button" class="thumb ${cls||''}" data-act="zoom" data-v="${v}" data-n="${n}" aria-label="放大分鏡圖 鏡${pad(n)}"><img src="${imgSrc(v,n)}" alt="分鏡圖 鏡${pad(n)} ${esc(SH(v,n).size)}" loading="lazy"></button>`; /* 公開版不放分鏡圖；有密碼的版本由 window.SLATE_IMG 開啟 */
 function renderZoom(){
   const el=$('#zoom');
   if(!ZM){el.hidden=true;el.innerHTML='';return}
@@ -668,7 +669,7 @@ function viewLive(){
   ${(()=>{const ns=runShots(rn);const aa=ns.filter(n=>SH(v,n).who==='a');return aa.length?`<p class="note"><b>阿伯單人鏡頭：</b>鏡${aa.map(pad).join('、')}。源寶在拍平面時，可以先只拍阿伯的這幾個。</p>`:''})()}
   ${rn.note?`<p class="note"><b>這一輪拍法：</b>${esc(rn.note)}</p>`:''}
   <p class="note">${esc(b.tip)}</p>
-  <p class="small muted">分鏡原本的「A機、D機」是機位代號，現場請照 Cam1／2／3。</p>
+  <p class="small muted">${window.SLATE_IMG?'每個鏡頭旁邊是分鏡圖，點圖可以放大。圖上的「A機、D機」是分鏡原本的機位代號，現場請照 Cam1／2／3。':'分鏡原本的「A機、D機」是機位代號，現場請照 Cam1／2／3。'}</p>
   ${storyHtml(v,rn)}
   ${camRole1?`<section class="camcard"><h3>攝影師通用做法</h3>${CAM_STEPS}</section>`:''}
   ${summary}
@@ -686,7 +687,8 @@ function camCell(v,rn,c){
   return a.map(n=>{const s=SH(v,n),st=L(key(v,n)).st;return `<button type="button" class="chip sm st-${st}" data-act="go" data-v="${v}" data-n="${n}" title="${esc(s.size)}（${ST[st]}）">${pad(n)}<small>${s.mm?s.mm+'mm':'圖卡'}</small></button>`}).join('');
 }
 function flowHtml(){
-  const col=(v,k,ttl,help)=>{const ns=SHOTS[v].filter(x=>k.includes(x.who)).map(x=>x.n);return `<div class="flowcol"><b class="small">${ttl}</b><div class="small muted">${help}</div><div class="chips">${ns.map(n=>chipHtml(v,n)).join('')||'<span class="muted small">—</span>'}</div></div>`};
+  const row=(v,x)=>`<div class="frow">${chipHtml(v,x.n)}<div class="ftxt"><b>${esc(x.size)}${x.mm?' · '+x.mm+'mm':''}</b>　${esc(x.act)}${x.line&&x.line!=='無台詞'?`<div class="small muted">台詞：${esc(x.line)}</div>`:''}</div></div>`;
+  const col=(v,k,ttl,help)=>{const xs=SHOTS[v].filter(x=>k.includes(x.who));return `<div class="flowcol"><b class="small">${ttl}</b><div class="small muted">${help}</div><div class="frows">${xs.map(x=>row(v,x)).join('')||'<span class="muted small">—</span>'}</div></div>`};
   const blk=(v,name,cos)=>`<div class="flowblk"><h4>${name}　${cos}</h4>
     ${col(v,['a','s'],'① 阿伯單人鏡頭','源寶在拍平面的時候，阿伯同步先拍這些。對手的台詞由場記在旁邊唸，讓阿伯有視線和反應。')}
     ${col(v,['y','d','g'],'② 兩人到齊後拍','源寶平面拍完，兩人一起拍剩下的（源寶單人＋雙人＋活動資訊）。分割鏡頭的源寶那一半也在這時拍。')}</div>`;
@@ -969,11 +971,46 @@ document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(ZM){ZM=nul
 $('#app').addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.d){d.open?openSet.add(d.dataset.d):openSet.delete(d.dataset.d)}},true);
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==tab)setTab(h)});
 
+/* ============ 同步：自家伺服器版（輪詢，介面比照 db） ============ */
+function makeHttpDb(base){
+  let since=0,stop=false;const docs={},myU={},colCbs=[],docCbs=[];
+  const emit=()=>{
+    const logs=Object.keys(docs).filter(k=>k.startsWith('logs/')).map(k=>({id:k.slice(5),data:()=>docs[k]}));
+    colCbs.forEach(f=>f({metadata:{fromCache:false},docs:logs}));
+    docCbs.forEach(f=>f({exists:!!docs['meta/plan'],data:()=>docs['meta/plan']}));
+  };
+  async function tick(){
+    try{
+      const r=await fetch(base+'/state?since='+since,{credentials:'same-origin',cache:'no-store'});
+      if(r.status===401){location.reload();return}
+      const j=await r.json();let ch=since===0;
+      (j.docs||[]).forEach(d=>{if(myU[d.k]&&d.u<=myU[d.k])return;docs[d.k]=d.v;ch=true});
+      since=Math.max(since,j.seq||0);
+      if(ch)emit();
+      failed.forEach(k=>persist(k));
+    }catch(e){setSync('err','連不上伺服器，先存在此裝置')}
+  }
+  const loop=async()=>{while(!stop){await tick();await new Promise(r=>setTimeout(r,document.hidden?6000:2000))}};
+  setTimeout(loop,0);
+  return {
+    collection:()=>({onSnapshot:(f)=>{colCbs.push(f)}}),
+    doc:path=>({
+      set:async body=>{
+        const r=await fetch(base+'/doc?k='+encodeURIComponent(path),{method:'PUT',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+        if(!r.ok)throw new Error('http '+r.status);
+        const j=await r.json();myU[path]=Math.max(myU[path]||0,j.u);
+      },
+      onSnapshot:f=>{docCbs.push(f)}
+    })
+  };
+}
+
 /* ============ 同步（db） ============ */
 (async()=>{
   try{
-    const c=window.claude;if(!c||!c.use){setSync('','只存在這支手機');return}
-    db=await c.use('db');
+    if(window.SLATE_SYNC){db=makeHttpDb(window.SLATE_SYNC)}
+    else{const c=window.claude;if(!c||!c.use){setSync('','只存在這支手機');return}
+    db=await c.use('db');}
     if(!db){setSync('','只存在這支手機');return}
     setSync('load','同步中');
     const wait=setTimeout(()=>setSync('err','連不上雲端，先存在此裝置'),10000);
