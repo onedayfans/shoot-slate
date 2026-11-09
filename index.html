@@ -102,6 +102,7 @@ h3{font-size:15px;margin:0;font-weight:700}
 .cf-btns .cfsave.full{background:var(--ok);border-color:var(--ok);color:#fff}
 .camfiles.just{animation:pop .5s}
 @keyframes pop{0%{box-shadow:0 0 0 0 rgba(26,138,80,.7)}100%{box-shadow:0 0 0 14px rgba(26,138,80,0)}}
+.shotnav{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 6px}.shotnav .sb{width:38px}
 .task.flash{outline:4px solid var(--acc);outline-offset:2px;border-radius:8px}
 .note{background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px}
 
@@ -676,6 +677,7 @@ function taskHtml(v,n){
       <span class="pill ${l.st}">${ST[l.st]}</span></div>
     ${help?`<p class="hint">${esc(help)}</p>`:''}
     ${d<2?`<p class="warnline">成片只用 ${fmtSec(d)} 秒，但現場請把整段表演拍完整，剪輯再取秒數。</p>`:''}</div></div>
+    ${shotNav(v,n)}
     <dl class="info"><dt>畫面怎麼放</dt><dd>${esc(s.comp)}</dd><dt>演員做什麼</dt><dd>${esc(s.act)}</dd>${s.line&&s.line!=='無台詞'?`<dt>台詞</dt><dd>${esc(s.line)}</dd>`:''}</dl>${camFiles(key(v,n))}</div>`;
 }
 function camCard(v,rn,c){
@@ -732,13 +734,17 @@ function shotBar(v,rn){
   return `<div class="shotbar"><div class="sb-row" id="sb-row">${btns}</div><div class="sb-now"><b>現在：鏡 ${pad(cur)}</b> ${esc(cs.size)}・${WLAB[cs.who]}　${esc(cs.act)}</div></div>`;
 }
 let sbLast=null,sbX=0;
+function shotNav(v,cur){
+  const rn=RUNS[v][curRun(v)],ns=new Set(runShots(rn));
+  return `<div class="shotnav" role="group" aria-label="全部分鏡">${SHOTS[v].map(x=>{const l=L(key(v,x.n));return `<button type="button" class="sb ${l.st==='ng'?'ng':''} fc-${fcount(l)} w-${x.who}${ns.has(x.n)?' inrun':''}${x.n===cur?' cur':''}" data-act="sbgo" data-n="${x.n}" aria-label="鏡${x.n} ${WHO_L[x.who]} 檔案${fcount(l)}/3"><b>${pad(x.n)}</b><u>${WLAB[x.who]}</u></button>`}).join('')}</div>`;
+}
 function sbScroll(){const r=document.getElementById('sb-row');if(!r)return;const c=r.querySelector('.cur'),k=c&&c.dataset.n;if(k===sbLast)r.scrollLeft=sbX;else if(c)r.scrollLeft=c.offsetLeft-r.clientWidth/2+17;sbLast=k;r.onscroll=()=>{sbX=r.scrollLeft}}
 function sbGo(n){
   const v=UI.lv,x=RUN_OF[v][n];UI.foc=UI.foc||{};UI.foc[v]=n;
   if(x&&x.length)UI.cur[v]=x[0].run.ri;
   LSEL={};saveUI();render();
   const el=document.getElementById('lt-'+n);
-  if(el){el.scrollIntoView({block:'start'});window.scrollBy(0,-190);el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1400)}
+  if(el){el.scrollIntoView({block:'start'});window.scrollBy(0,-150);el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1400)}
 }
 function viewLive(){
   const v=UI.lv,ri=curRun(v),rn=RUNS[v][ri],b=rn.beat,role=UI.role;
