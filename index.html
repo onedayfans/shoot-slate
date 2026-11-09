@@ -640,8 +640,7 @@ function logCard(v,rn){
     return `<div class="recrow"><label class="rsel"><input type="checkbox" data-act="lsel" data-n="${n}" ${isSel(n)?'checked':''} aria-label="記錄鏡${pad(n)}"> <b>${camOf(v,n)}　鏡${pad(n)}</b></label><span style="justify-self:end;display:flex;gap:6px;align-items:center"><span class="pill ${l.st}">${ST[l.st]}</span>${l.st!=='todo'?`<button type="button" class="undo" data-act="undo1" data-k="${k}">取消</button>`:''}</span>
       <input data-f="file" data-k="${k}" value="${esc(l.file)}" placeholder="檔名（例 C0123）" aria-label="鏡${pad(n)} 檔名"><input data-f="note" data-k="${k}" value="${esc(l.note)}" placeholder="備註" aria-label="鏡${pad(n)} 備註">${saveBlock(k,true)}</div>`}).join('');
   return `<section class="camcard"><h3>場記<span class="muted small">這一輪要記的事</span></h3>
-    <ol class="steps"><li>把場板對著鏡頭，唸「${esc(rn.label)}、Take ${t}」。</li><li>三台一起錄，演員表演。</li><li>導演喊卡後，按下面的 OK、備用或 NG。</li><li>記每台的檔案號。</li></ol>
-    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><span class="small muted" style="flex-basis:100%">Take 是這一輪演第幾次，場板上要唸。每按一次下面的「這條…」就算演過一次，自動加 1。</span><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
+    <div class="takebig"><span class="muted">這一輪是</span><b>Take ${t}</b><button type="button" class="btn acc" data-act="slaterun" data-v="${v}" data-ri="${rn.ri}" style="margin-left:auto">大字場板</button></div>
     ${lines?`<div><b class="small">台詞</b><ul class="steps plain">${lines}</ul></div>`:''}
     <div><b class="small">連戲重點（前後要對得上）</b><ul class="steps plain">${cont}</ul></div>
     ${exs?`<div><b class="small">要多拍的保險版（拍了就打勾）</b><div class="ex" style="margin-top:4px">${exs}</div></div>`:''}
@@ -671,9 +670,7 @@ function viewLive(){
   ${(()=>{const ns=runShots(rn);const aa=ns.filter(n=>SH(v,n).who==='a');return aa.length?`<p class="note"><b>阿伯單人鏡頭：</b>鏡${aa.map(pad).join('、')}。源寶在拍平面時，可以先只拍阿伯的這幾個。</p>`:''})()}
   ${rn.note?`<p class="note"><b>這一輪拍法：</b>${esc(rn.note)}</p>`:''}
   <p class="note">${esc(b.tip)}</p>
-  <p class="small muted">${window.SLATE_IMG?'每個鏡頭旁邊是分鏡圖，點圖可以放大。圖上的「A機、D機」是分鏡原本的機位代號，現場請照 Cam1／2／3。':'分鏡原本的「A機、D機」是機位代號，現場請照 Cam1／2／3。'}</p>
   ${storyHtml(v,rn)}
-  ${camRole1?`<section class="camcard"><h3>攝影師通用做法</h3>${CAM_STEPS}</section>`:''}
   ${summary}
   ${[1,2,3].filter(showCam).map(c=>camCard(v,rn,c)).join('')}
   ${nx?`<p class="note"><b>你的下一個任務：</b>${nx.x.label}（${esc(nx.x.beat.name)}）鏡${pad(nx.s.n)} ${esc(nx.s.size)}${nx.s.mm?'，'+nx.s.mm+'mm':''}。可以先準備。</p>`:''}
@@ -717,8 +714,8 @@ function viewPlan(){
   }).join('');
   const prep=PREP.map(([id,t])=>`<label class="chk"><input type="checkbox" data-act="prep" data-id="${id}" ${S.meta.prep&&S.meta.prep[id]?'checked':''}> <span>${esc(t)}</span></label>`).join('');
   return `
-  <section class="panel howto"><h3>怎麼用（3 步）</h3><ol class="steps"><li>先看下面「當天順序」，點 A1、B1 這種按鈕，會跳到「現場」頁那一輪。</li><li>現場頁選你是 Cam1／Cam2／Cam3 還是場記，只看你要做的事。</li><li>拍完在「場記」頁每個鏡頭按 OK／備用／NG，再按「儲存這一條」留一筆紀錄。</li></ol>
-    <button type="button" class="btn ${CLR?'danger':'ghost'}" data-act="clearall">${CLR?'再按一次，確定全部清空':'全部清空'}</button><span class="small muted"> 清掉所有鏡頭紀錄和拍前準備勾選（日期、時間保留）。</span></section>
+  <section class="panel howto">
+    <button type="button" class="btn ${CLR?'danger':'ghost'}" data-act="clearall">${CLR?'再按一次，確定全部清空':'全部清空'}</button></section>
   <section class="panel camset"><h3>這次用的機器</h3><div class="small muted">填機型（例如 FX3、A7S3），全頁的 Cam1／2／3 後面會自動加上。之後想換機位，直接改這裡，整頁一起換。</div>
     <div class="camfields">${[1,2,3].map(c=>`<label>Cam${c} 機型<input data-cam="${c}" value="${esc((S.meta.cams||{})[c]||'')}" placeholder="${['例 FX3','例 A7S3','例 其他機型'][c-1]}" maxlength="20"></label>`).join('')}</div></section>
   <section class="panel settings">
