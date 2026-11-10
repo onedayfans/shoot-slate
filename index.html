@@ -761,12 +761,15 @@ function shotNav(v,cur){
   return `<div class="shotnav" role="group" aria-label="全部劇情">${gBtns(v,cur)}</div>`;
 }
 function sbScroll(){const r=document.getElementById('sb-row');if(!r)return;const c=r.querySelector('.cur'),k=c&&c.dataset.n;if(k===sbLast)r.scrollLeft=sbX;else if(c)r.scrollLeft=c.offsetLeft-r.clientWidth/2+17;sbLast=k;r.onscroll=()=>{sbX=r.scrollLeft}}
-function sbGo(n){
+function sbGo(n,toGroup){
   const v=UI.lv,x=RUN_OF[v][n];UI.foc=UI.foc||{};UI.foc[v]=n;
   if(x&&x.length)UI.cur[v]=x[0].run.ri;
   LSEL={};saveUI();render();
-  const el=document.getElementById('lt-'+n);
-  if(el){el.scrollIntoView({block:'start'});window.scrollBy(0,-150);el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1400)}
+  const el=document.getElementById(toGroup?'grpcard':'lt-'+n);
+  if(el){
+    const bar=document.querySelector('.shotbar'),off=bar?parseFloat(getComputedStyle(bar).top||0)+bar.offsetHeight+8:150;
+    window.scrollTo(0,Math.max(0,el.getBoundingClientRect().top+window.scrollY-off));
+    el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),1400)}
 }
 function viewLive(){
   const v=UI.lv,ri=curRun(v),rn=RUNS[v][ri],b=rn.beat,role=UI.role;
@@ -1012,14 +1015,14 @@ function gClass(v,g){
 const gTarget=(v,g)=>g.shots.find(n=>L(key(v,n)).st==='todo')||g.shots[0];
 function gBtns(v,cur){
   const cg=gOf(v,cur),rn=RUNS[v][curRun(v)],ns=new Set(runShots(rn));
-  return GROUPS[v].map(g=>`<button type="button" class="sb gb ${g.shots.some(n=>hasSay(v,n))?'hs ':''}${gClass(v,g)}${g.shots.some(n=>ns.has(n))?' inrun':''}${g===cg?' cur':''}" data-act="sbgo" data-n="${gTarget(v,g)}" aria-label="劇情${g.g} ${esc(g.title)}"><b>${g.g}</b><u>${esc(g.short)}</u></button>`).join('');
+  return GROUPS[v].map(g=>`<button type="button" class="sb gb ${g.shots.some(n=>hasSay(v,n))?'hs ':''}${gClass(v,g)}${g.shots.some(n=>ns.has(n))?' inrun':''}${g===cg?' cur':''}" data-act="sbgo" data-g="1" data-n="${gTarget(v,g)}" aria-label="劇情${g.g} ${esc(g.title)}"><b>${g.g}</b><u>${esc(g.short)}</u></button>`).join('');
 }
 function groupCard(v){
   const cur=focusShot(v),g=gOf(v,cur);if(!g)return '';
   const sh=g.shots.map(n=>{const x=SH(v,n),l=L(key(v,n));
     return `<button type="button" class="gsh${n===cur?' cur':''}" data-act="sbgo" data-n="${n}"><b class="no sm">${pad(n)}</b><span><b>${esc(x.size)}</b>　${x.cam?esc(x.cam)+' 機　':''}${x.mm?x.mm+'mm　':''}${fmtSec(dur(x))} 秒</span><span class="pill ${l.st}">${ST[l.st]}</span></button>`}).join('');
   const lines=g.shots.flatMap(n=>sayOf(v,n).filter(x=>x.t).map(x=>`<div class="sl"><span class="sw">${esc(x.w)}</span><span class="st">「${esc(x.t)}」</span><span class="sn">鏡${pad(n)}</span></div>`)).join('');
-  return `<section class="camcard grp"><div class="gh"><span class="gno">劇情 ${g.g}／${GROUPS[v].length}</span><b>${esc(g.title)}</b></div><p class="runstory">${esc(g.story)}</p>${lines?`<div class="say">${lines}</div>`:'<div class="say none">這一段沒有台詞</div>'}<b class="small">建議分鏡（點一下跳到那一鏡）</b><div class="gshots">${sh}</div></section>`;
+  return `<section class="camcard grp" id="grpcard"><div class="gh"><span class="gno">劇情 ${g.g}／${GROUPS[v].length}</span><b>${esc(g.title)}</b></div><p class="runstory">${esc(g.story)}</p>${lines?`<div class="say">${lines}</div>`:'<div class="say none">這一段沒有台詞</div>'}<b class="small">建議分鏡（點一下跳到那一鏡）</b><div class="gshots">${sh}</div></section>`;
 }
 /* ============ 台詞（紅字）：w=誰說、t=正式原句、s=40秒版（不同才寫）、n=備註 ============ */
 const SAY={
@@ -1199,7 +1202,7 @@ document.addEventListener('click',e=>{
   else if(a==='cfedit'){EDITING.add(b.dataset.k);render();const i=document.querySelector(`.camfiles[data-k="${b.dataset.k}"] input`);if(i)i.focus()}
   else if(a==='cfclear'){const k=b.dataset.k;patch(k,{f1:'',f2:'',f3:''});[1,2,3].forEach(c=>delete DRAFT[k+c]);EDITING.delete(k);cfFlash(k)}
   else if(a==='saytog'){e.preventDefault();UI.say=!UI.say;saveUI();render()}
-  else if(a==='sbgo')sbGo(+b.dataset.n);
+  else if(a==='sbgo')sbGo(+b.dataset.n,!!b.dataset.g);
   else if(a==='cardv'){CARD.v=b.dataset.v;render()}
   else if(a==='cuenav')cueGo(+b.dataset.d);
   else if(a==='go')goShot(b.dataset.v,+b.dataset.n);
